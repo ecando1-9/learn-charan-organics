@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #f7f3ea;
+  color: #18231d;
+}
+
+.dark body {
+  background: #07140f;
+  color: #f7f3ea;
+}
+
+::selection {
+  background: #2f7d4f;
+  color: white;
+}
+
+.glass {
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 45px rgba(18, 56, 42, 0.12);
+  backdrop-filter: blur(20px);
+}
+
+.dark .glass {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(10, 30, 22, 0.7);
+}
+
+.organic-bg {
+  background-image:
+    linear-gradient(90deg, rgba(7, 20, 15, 0.76), rgba(18, 56, 42, 0.3)),
+    url("https://images.unsplash.com/photo-1611073761523-677187bf0e17?auto=format&fit=crop&w=1800&q=85");
+  background-size: cover;
+  background-position: center;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
