@@ -4,12 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") ?? "/dashboard";
 
   if (code) {
     const supabase = await createClient();
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.redirect(new URL(next, requestUrl.origin));
+  // Always redirect to dashboard after Google OAuth.
+  // The /dashboard page handles role-based routing from there.
+  return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
 }

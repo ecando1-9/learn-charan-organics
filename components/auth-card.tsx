@@ -23,10 +23,13 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
     setLoading(true);
     setMessage("");
     const origin = window.location.origin;
+    // Store next destination before OAuth redirect so the callback URL stays
+    // clean (no query params). Supabase requires exact URL match against allow list.
+    sessionStorage.setItem("authRedirectNext", redirectTo);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`
+        redirectTo: `${origin}/auth/callback`
       }
     });
     if (error) {
