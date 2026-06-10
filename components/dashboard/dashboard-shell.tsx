@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Award, Bell, BookOpen, Heart, Home, Settings, UserRound } from "lucide-react";
+import { LogoutButton } from "@/components/logout-button";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: Home },
@@ -18,7 +19,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <main className="lg:pl-72">
         <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-forest/10 bg-linen/85 px-4 backdrop-blur-xl sm:px-6 dark:border-white/10 dark:bg-[#07140f]/85">
           <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-leaf">Student Portal</p><h1 className="font-black text-forest dark:text-cream">My Learning</h1></div>
-          <div className="flex gap-2"><span className="grid size-10 place-items-center rounded-full bg-white shadow-sm dark:bg-white/10"><Bell size={18} /></span><span className="grid size-10 place-items-center rounded-full bg-forest text-white"><UserRound size={18} /></span></div>
+          <div className="flex gap-2"><span className="grid size-10 place-items-center rounded-full bg-white shadow-sm dark:bg-white/10"><Bell size={18} /></span><span className="grid size-10 place-items-center rounded-full bg-forest text-white"><UserRound size={18} /></span><LogoutButton compact /></div>
         </header>
         <div className="px-4 py-6 pb-24 sm:px-6 lg:px-8">{children}</div>
       </main>

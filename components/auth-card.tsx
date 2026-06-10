@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Chrome, GraduationCap, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { getBrowserAppUrl } from "@/lib/site-url";
 
 export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
   const router = useRouter();
@@ -22,7 +23,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
   async function handleGoogleLogin() {
     setLoading(true);
     setMessage("");
-    const origin = window.location.origin;
+    const origin = getBrowserAppUrl();
     // Store next destination before OAuth redirect so the callback URL stays
     // clean (no query params). Supabase requires exact URL match against allow list.
     sessionStorage.setItem("authRedirectNext", redirectTo);
@@ -45,7 +46,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
 
     if (mode === "forgot") {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/login`
+        redirectTo: `${getBrowserAppUrl()}/login`
       });
       setMessage(error ? error.message : "Password reset link sent. Check your email.");
       setLoading(false);
@@ -53,15 +54,27 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
     }
 
     if (mode === "register") {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+          emailRedirectTo: `${getBrowserAppUrl()}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
           data: { full_name: fullName }
         }
       });
-      setMessage(error ? error.message : "Account created. Please verify your email to continue.");
+      if (error) {
+        setMessage(error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (data.session) {
+        router.push(redirectTo);
+        router.refresh();
+        return;
+      }
+
+      setMessage("Account created. Please verify your email to continue.");
       setLoading(false);
       return;
     }

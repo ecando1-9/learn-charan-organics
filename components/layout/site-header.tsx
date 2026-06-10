@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, GraduationCap, LayoutDashboard, Menu, Moon, Search, Sun, UserRound } from "lucide-react";
+import { BookOpen, GraduationCap, Menu, Moon, Search, Sun, UserRound } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { LogoutButton } from "@/components/logout-button";
 
 const links = [
   { href: "/courses", label: "Courses" },
@@ -57,12 +58,15 @@ export function SiteHeader() {
             <Button variant="ghost" className="size-11 px-0" aria-label="Search"><Search size={18} /></Button>
             <Button variant="ghost" className="size-11 px-0" aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</Button>
             {userLabel ? (
-              <Link href="/dashboard">
-                <Button variant="secondary" className="max-w-52">
-                  <UserRound size={17} />
-                  <span className="truncate">{userLabel}</span>
-                </Button>
-              </Link>
+              <>
+                <Link href="/dashboard">
+                  <Button variant="secondary" className="max-w-52">
+                    <UserRound size={17} />
+                    <span className="truncate">{userLabel}</span>
+                  </Button>
+                </Link>
+                <LogoutButton compact />
+              </>
             ) : (
               <Link href="/login"><Button variant="secondary"><UserRound size={17} /> Login</Button></Link>
             )}
@@ -76,7 +80,7 @@ export function SiteHeader() {
           { href: "/", label: "Home", icon: GraduationCap },
           { href: "/courses", label: "Courses", icon: Search },
           { href: "/dashboard", label: "Learn", icon: BookOpen },
-          { href: "/login", label: "Account", icon: UserRound }
+          { href: userLabel ? "/dashboard/settings" : "/login", label: "Account", icon: UserRound }
         ].map((item) => (
           <Link key={item.href} href={item.href} className="flex flex-col items-center gap-1 rounded-2xl px-2 py-1.5 text-[11px] font-semibold text-forest dark:text-cream">
             <item.icon size={18} />

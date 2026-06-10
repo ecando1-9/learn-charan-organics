@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Mail, Save, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { LogoutButton } from "@/components/logout-button";
 
 export default function SettingsPage() {
   const [fullName, setFullName] = useState("");
@@ -55,10 +56,13 @@ export default function SettingsPage() {
             <input value={email} disabled className="min-h-12 w-full bg-transparent outline-none disabled:opacity-70" placeholder="Email address" />
           </span>
         </label>
-        <Button type="submit" disabled={loading}>
-          <Save size={18} />
-          {loading ? "Saving" : "Save profile"}
-        </Button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button type="submit" disabled={loading}>
+            <Save size={18} />
+            {loading ? "Saving" : "Save profile"}
+          </Button>
+          <LogoutButton />
+        </div>
         {message && <p className="rounded-2xl bg-linen p-3 text-sm font-semibold text-forest dark:bg-white/10 dark:text-cream">{message}</p>}
       </form>
     </div>
