@@ -14,25 +14,10 @@ export default async function LearnPage({ params }: { params: Promise<{ courseSl
   if (!user) redirect(`/login?redirectTo=/learn/${courseSlug}/${lessonSlug}`);
 
   const course = await getCourseBySlug(courseSlug, true);
-
-  // DEBUG — remove after fixing
-  if (!course) {
-    return <pre style={{color:"red",padding:20}}>❌ course is NULL for slug: {courseSlug}</pre>;
-  }
+  if (!course) notFound();
 
   const lesson = course.modules.flatMap((m) => m.lessons).find((l) => l.slug === lessonSlug);
-
-  // DEBUG — remove after fixing
-  if (!lesson) {
-    return (
-      <pre style={{color:"orange",padding:20,whiteSpace:"pre-wrap"}}>
-        ❌ lesson not found for slug: {lessonSlug}{"\n"}
-        modules count: {course.modules.length}{"\n"}
-        lessons found: {JSON.stringify(course.modules.flatMap(m => m.lessons.map(l => l.slug)))}{"\n"}
-        course title: {course.title}
-      </pre>
-    );
-  }
+  if (!lesson) notFound();
 
   // Check enrollment
   const { data: dbCourse } = await supabase
