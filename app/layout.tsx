@@ -13,6 +13,11 @@ export const metadata: Metadata = {
     template: "%s | Charan Organics Academy"
   },
   description: "Premium online LMS for soap making, shampoo making, herbal oils, skin care, candles, perfumes, incense sticks, detergents and organic product manufacturing courses.",
+  icons: {
+    icon: "https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png",
+    shortcut: "https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png",
+    apple: "https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png",
+  },
   openGraph: {
     title: "Charan Organics Academy",
     description: "Learn organic and natural product manufacturing from practical instructors.",
