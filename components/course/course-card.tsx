@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Clock, Lock, PlayCircle, Signal } from "lucide-react";
 import type { Course } from "@/lib/types";
@@ -8,7 +7,8 @@ export function CourseCard({ course }: { course: Course }) {
   return (
     <Link href={`/courses/${course.slug}`} className="group overflow-hidden rounded-[2rem] border border-forest/10 bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-glass dark:border-white/10 dark:bg-white/5">
       <div className="relative aspect-[4/3] overflow-hidden">
-        <Image src={course.thumbnail} alt={course.title} fill className="object-cover transition duration-700 group-hover:scale-105" sizes="(max-width: 768px) 100vw, 33vw" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-105" />
         <span className="absolute left-4 top-4 rounded-full bg-white/85 px-3 py-1 text-xs font-bold text-forest backdrop-blur">{course.category}</span>
       </div>
       <div className="space-y-4 p-5">

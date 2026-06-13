@@ -25,14 +25,14 @@ export default async function AdminEnrollmentsPage() {
   // Try full query first (with new columns)
   let { data, error } = await supabase
     .from("lms_enrollment_requests")
-    .select("id,status,course_title,amount_inr,upi_id,utr_number,payment_proof_url,selected_all,requested_at,admin_note,lms_profiles(full_name,email)")
+    .select("id,status,course_title,amount_inr,upi_id,utr_number,payment_proof_url,selected_all,requested_at,admin_note,lms_profiles!user_id(full_name,email)")
     .order("requested_at", { ascending: false });
 
   // If new columns missing, fall back to base columns
   if (error && (error.message.includes("utr_number") || error.message.includes("payment_proof_url") || error.message.includes("selected_all"))) {
     const fallback = await supabase
       .from("lms_enrollment_requests")
-      .select("id,status,course_title,amount_inr,upi_id,requested_at,admin_note,lms_profiles(full_name,email)")
+      .select("id,status,course_title,amount_inr,upi_id,requested_at,admin_note,lms_profiles!user_id(full_name,email)")
       .order("requested_at", { ascending: false });
     data = fallback.data as unknown as typeof data;
     error = fallback.error;

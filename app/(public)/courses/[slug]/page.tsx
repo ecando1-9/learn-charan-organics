@@ -76,7 +76,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
           </div>
           <aside className="glass h-fit rounded-[2rem] p-4 text-forest lg:sticky lg:top-24 dark:text-cream">
             <div className="relative aspect-video overflow-hidden rounded-[1.5rem]">
-              <Image src={course.thumbnail} alt={course.title} fill className="object-cover" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
               <div className="absolute inset-0 grid place-items-center bg-black/25"><PlayCircle className="text-white" size={54} /></div>
             </div>
             <div className="p-3">

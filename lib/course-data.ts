@@ -106,7 +106,7 @@ export async function getPublishedCourses() {
     .from("lms_courses")
     .select("*")
     .eq("published", true)
-    .order("created_at", { ascending: false });
+    .order("sort_order", { ascending: true });
 
   if (error || !data) return [];
 
@@ -142,7 +142,6 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
       .from("lms_lessons")
       .select("id,module_id,title,slug,description,sort_order")
       .in("module_id", moduleIds)
-      .eq("published", true)
       .order("sort_order", { ascending: true })
     : { data: [] };
 

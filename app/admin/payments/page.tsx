@@ -21,7 +21,7 @@ export default async function AdminPaymentsPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("lms_enrollment_requests")
-    .select("id,status,course_title,amount_inr,upi_id,utr_number,payment_proof_url,selected_all,requested_at,admin_note,lms_profiles(full_name,email)")
+    .select("id,status,course_title,amount_inr,upi_id,utr_number,payment_proof_url,selected_all,requested_at,admin_note,lms_profiles!user_id(full_name,email)")
     .order("requested_at", { ascending: false });
 
   const rawRequests = (error ? [] : data ?? []) as unknown as PaymentRecord[];

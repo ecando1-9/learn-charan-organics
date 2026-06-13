@@ -32,23 +32,38 @@ export default function SettingsPage() {
   useEffect(() => {
     const supabase = createClient();
 
-    supabase.auth.getUser().then(({ data }) => {
-      const user = data.user;
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setEmail(user.email ?? "");
       setFullName(user.user_metadata?.full_name ?? user.user_metadata?.name ?? "");
 
-      // Load enrollment requests for this user
-      supabase
-        .from("lms_enrollment_requests")
-        .select("id,status,course_title,amount_inr,requested_at,reviewed_at,admin_note,utr_number")
-        .eq("user_id", user.id)
-        .order("requested_at", { ascending: false })
-        .then(({ data: reqData }) => {
+      try {
+        const { data: reqData, error: reqErr } = await supabase
+          .from("lms_enrollment_requests")
+          .select("id,status,course_title,amount_inr,requested_at,reviewed_at,admin_note,utr_number")
+          .eq("user_id", user.id)
+          .order("requested_at", { ascending: false });
+
+        if (reqErr) {
+          // Fallback: columns may not exist yet — query without new columns
+          const { data: fallbackData } = await supabase
+            .from("lms_enrollment_requests")
+            .select("id,status,course_title,amount_inr,requested_at,reviewed_at,admin_note")
+            .eq("user_id", user.id)
+            .order("requested_at", { ascending: false });
+          setRequests((fallbackData ?? []) as EnrollmentRequest[]);
+        } else {
           setRequests((reqData ?? []) as EnrollmentRequest[]);
-          setLoadingRequests(false);
-        });
-    });
+        }
+      } catch {
+        // silently ignore — page still renders without requests list
+      } finally {
+        setLoadingRequests(false);
+      }
+    }
+
+    load();
   }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

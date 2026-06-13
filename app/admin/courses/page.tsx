@@ -1,11 +1,31 @@
-import { getPublishedCourses } from "@/lib/course-data";
-import { CourseManagementTable } from "@/components/admin/admin-table";
+import { createClient } from "@/lib/supabase/server";
+import { AdminCoursesTable } from "@/components/admin/admin-table";
 import { AddCourseModal } from "@/components/admin/course-create-form";
 
 export const dynamic = "force-dynamic";
 
+export type AdminCourse = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  thumbnail_url: string | null;
+  youtube_url: string | null;
+  pdf_url: string | null;
+  price_inr: number;
+  published: boolean;
+  created_at: string;
+  sort_order: number;
+};
+
 export default async function AdminCoursesPage() {
-  const courses = await getPublishedCourses();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("lms_courses")
+    .select("id,slug,title,description,thumbnail_url,youtube_url,pdf_url,price_inr,published,created_at,sort_order")
+    .order("sort_order", { ascending: true });
+
+  const courses = (data ?? []) as AdminCourse[];
 
   return (
     <div className="space-y-6">
@@ -18,7 +38,7 @@ export default async function AdminCoursesPage() {
         </div>
         <AddCourseModal />
       </div>
-      <CourseManagementTable courses={courses} />
+      <AdminCoursesTable courses={courses} />
     </div>
   );
 }

@@ -8,6 +8,17 @@ export async function submitEnrollmentRequest(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
+  // Auto-create profile if it doesn't exist (fixes foreign key error for new users)
+  await supabase.from("lms_profiles").upsert(
+    {
+      id: user.id,
+      email: user.email ?? "",
+      full_name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+      avatar_url: user.user_metadata?.avatar_url ?? null,
+    },
+    { onConflict: "id", ignoreDuplicates: true }
+  );
+
   const courseIds = formData.getAll("course_ids") as string[];
   const courseTitles = formData.get("course_titles") as string;
   const amount = Number(formData.get("amount"));
@@ -43,6 +54,7 @@ export async function submitEnrollmentRequest(formData: FormData) {
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/settings");
   return { success: true };
 }
 
