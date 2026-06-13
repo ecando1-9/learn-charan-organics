@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
-import { categories, courses } from "@/lib/data";
 import { CourseCard } from "@/components/course/course-card";
+import type { Course } from "@/lib/types";
 
-export function CourseFilters() {
+export function CourseFilters({ courses }: { courses: Course[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [level, setLevel] = useState("All");
+  const categories = useMemo(() => Array.from(new Set(courses.map((course) => course.category))).sort(), [courses]);
 
   const filtered = useMemo(() => courses.filter((course) => {
     const matchesQuery = course.title.toLowerCase().includes(query.toLowerCase()) || course.category.toLowerCase().includes(query.toLowerCase());
@@ -33,9 +34,16 @@ export function CourseFilters() {
         </select>
       </div>
       <div className="mt-8 flex items-center gap-2 text-sm font-semibold text-ink/60 dark:text-cream/60"><SlidersHorizontal size={18} /> {filtered.length} courses found</div>
-      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((course) => <CourseCard key={course.slug} course={course} />)}
-      </div>
+      {filtered.length ? (
+        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((course) => <CourseCard key={course.slug} course={course} />)}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-[2rem] bg-white p-8 text-center shadow-soft dark:bg-white/5">
+          <h2 className="text-xl font-black text-forest dark:text-cream">No courses published yet</h2>
+          <p className="mt-2 text-sm text-ink/60 dark:text-cream/60">Courses added from the admin panel will appear here.</p>
+        </div>
+      )}
     </div>
   );
 }

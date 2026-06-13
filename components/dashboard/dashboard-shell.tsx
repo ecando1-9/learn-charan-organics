@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Award, Bell, BookOpen, Heart, Home, Settings, UserRound } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { BrandLogo } from "@/components/brand-logo";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: Home },
@@ -13,7 +14,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-linen dark:bg-[#07140f]">
       <aside className="fixed left-0 top-0 hidden h-screen w-72 border-r border-forest/10 bg-white/75 p-5 backdrop-blur-xl lg:block dark:border-white/10 dark:bg-white/5">
-        <Link href="/" className="text-xl font-black text-forest dark:text-cream">Charan Academy</Link>
+        <BrandLogo />
         <nav className="mt-8 grid gap-2">{nav.map((item) => <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/70 hover:bg-linen dark:text-cream/70 dark:hover:bg-white/10"><item.icon size={18} /> {item.label}</Link>)}</nav>
       </aside>
       <main className="lg:pl-72">

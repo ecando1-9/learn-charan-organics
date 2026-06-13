@@ -183,6 +183,44 @@ alter table public.lms_certificates enable row level security;
 alter table public.lms_notifications enable row level security;
 alter table public.lms_wishlist enable row level security;
 
+alter table public.lms_courses add column if not exists youtube_url text;
+alter table public.lms_courses add column if not exists pdf_url text;
+
+create table if not exists public.lms_enrollment_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.lms_profiles(id) on delete cascade,
+  course_id uuid references public.lms_courses(id) on delete cascade,
+  course_title text not null,
+  amount_inr integer not null default 0,
+  upi_id text not null default '8985482084@hdfc',
+  payment_reference text,
+  payment_screenshot_path text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'cancelled')),
+  admin_note text,
+  requested_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references public.lms_profiles(id)
+);
+
+create table if not exists public.lms_certificate_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.lms_profiles(id) on delete cascade,
+  course_id uuid references public.lms_courses(id) on delete cascade,
+  course_title text not null,
+  name_on_certificate text not null,
+  watched_lessons integer not null default 0,
+  total_lessons integer not null default 0,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'revoked')),
+  certificate_id uuid references public.lms_certificates(id),
+  admin_note text,
+  requested_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references public.lms_profiles(id)
+);
+
+alter table public.lms_enrollment_requests enable row level security;
+alter table public.lms_certificate_requests enable row level security;
+
 create or replace function public.lms_is_admin()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists(
@@ -215,17 +253,63 @@ $$;
 
 drop trigger if exists on_auth_user_created_lms_profile on auth.users;
 create trigger on_auth_user_created_lms_profile
-after insert on auth.users
+after insert or update of email, raw_user_meta_data on auth.users
 for each row execute function public.lms_handle_new_user();
+
+insert into public.lms_profiles (id, full_name, email, avatar_url)
+select
+  users.id,
+  coalesce(users.raw_user_meta_data->>'full_name', users.raw_user_meta_data->>'name'),
+  coalesce(users.email, ''),
+  users.raw_user_meta_data->>'avatar_url'
+from auth.users
+where not exists (
+  select 1
+  from public.lms_profiles profiles
+  where profiles.id = users.id
+)
+on conflict (id) do update set
+  email = excluded.email,
+  full_name = coalesce(public.lms_profiles.full_name, excluded.full_name),
+  avatar_url = coalesce(excluded.avatar_url, public.lms_profiles.avatar_url);
 
 drop policy if exists "LMS public can read published courses" on public.lms_courses;
 create policy "LMS public can read published courses"
 on public.lms_courses for select
 using (published = true or public.lms_is_admin());
 
+drop policy if exists "LMS public can read categories" on public.lms_course_categories;
+create policy "LMS public can read categories"
+on public.lms_course_categories for select
+using (true);
+
+drop policy if exists "LMS admins manage categories" on public.lms_course_categories;
+create policy "LMS admins manage categories"
+on public.lms_course_categories for all
+using (public.lms_is_admin())
+with check (public.lms_is_admin());
+
 drop policy if exists "LMS admins manage courses" on public.lms_courses;
 create policy "LMS admins manage courses"
 on public.lms_courses for all
+using (public.lms_is_admin())
+with check (public.lms_is_admin());
+
+drop policy if exists "LMS public can read published modules" on public.lms_modules;
+create policy "LMS public can read published modules"
+on public.lms_modules for select
+using (
+  public.lms_is_admin()
+  or exists (
+    select 1 from public.lms_courses c
+    where c.id = lms_modules.course_id
+      and c.published = true
+  )
+);
+
+drop policy if exists "LMS admins manage modules" on public.lms_modules;
+create policy "LMS admins manage modules"
+on public.lms_modules for all
 using (public.lms_is_admin())
 with check (public.lms_is_admin());
 
@@ -238,6 +322,11 @@ drop policy if exists "LMS users update own profile" on public.lms_profiles;
 create policy "LMS users update own profile"
 on public.lms_profiles for update
 using (id = auth.uid())
+with check (id = auth.uid());
+
+drop policy if exists "LMS users insert own profile" on public.lms_profiles;
+create policy "LMS users insert own profile"
+on public.lms_profiles for insert
 with check (id = auth.uid());
 
 drop policy if exists "LMS admins manage profiles" on public.lms_profiles;
@@ -257,16 +346,76 @@ on public.lms_enrollments for all
 using (public.lms_is_admin())
 with check (public.lms_is_admin());
 
+drop policy if exists "LMS users create enrollment requests" on public.lms_enrollment_requests;
+create policy "LMS users create enrollment requests"
+on public.lms_enrollment_requests for insert
+with check (user_id = auth.uid());
+
+drop policy if exists "LMS users read own enrollment requests" on public.lms_enrollment_requests;
+create policy "LMS users read own enrollment requests"
+on public.lms_enrollment_requests for select
+using (user_id = auth.uid() or public.lms_is_admin());
+
+drop policy if exists "LMS admins manage enrollment requests" on public.lms_enrollment_requests;
+create policy "LMS admins manage enrollment requests"
+on public.lms_enrollment_requests for all
+using (public.lms_is_admin())
+with check (public.lms_is_admin());
+
 drop policy if exists "LMS users manage own progress" on public.lms_progress;
 create policy "LMS users manage own progress"
 on public.lms_progress for all
 using (user_id = auth.uid() or public.lms_is_admin())
 with check (user_id = auth.uid() or public.lms_is_admin());
 
+drop policy if exists "LMS users create certificate requests" on public.lms_certificate_requests;
+create policy "LMS users create certificate requests"
+on public.lms_certificate_requests for insert
+with check (user_id = auth.uid());
+
+drop policy if exists "LMS users read own certificate requests" on public.lms_certificate_requests;
+create policy "LMS users read own certificate requests"
+on public.lms_certificate_requests for select
+using (user_id = auth.uid() or public.lms_is_admin());
+
+drop policy if exists "LMS admins manage certificate requests" on public.lms_certificate_requests;
+create policy "LMS admins manage certificate requests"
+on public.lms_certificate_requests for all
+using (public.lms_is_admin())
+with check (public.lms_is_admin());
+
 drop policy if exists "LMS enrolled students read lessons" on public.lms_lessons;
 create policy "LMS enrolled students read lessons"
 on public.lms_lessons for select
 using (published = true or public.lms_is_admin());
+
+drop policy if exists "LMS admins manage lessons" on public.lms_lessons;
+create policy "LMS admins manage lessons"
+on public.lms_lessons for all
+using (public.lms_is_admin())
+with check (public.lms_is_admin());
+
+drop policy if exists "LMS admins manage videos" on public.lms_videos;
+create policy "LMS admins manage videos"
+on public.lms_videos for all
+using (public.lms_is_admin())
+with check (public.lms_is_admin());
+
+drop policy if exists "LMS enrolled students read videos" on public.lms_videos;
+create policy "LMS enrolled students read videos"
+on public.lms_videos for select
+using (
+  public.lms_is_admin()
+  or exists (
+    select 1
+    from public.lms_enrollments e
+    join public.lms_modules m on m.course_id = e.course_id
+    join public.lms_lessons l on l.module_id = m.id
+    where l.id = lms_videos.lesson_id
+      and e.user_id = auth.uid()
+      and e.status = 'active'
+  )
+);
 
 drop policy if exists "LMS enrolled students read resources" on public.lms_pdf_resources;
 create policy "LMS enrolled students read resources"
@@ -283,6 +432,12 @@ using (
       and e.status = 'active'
   )
 );
+
+drop policy if exists "LMS admins manage resources" on public.lms_pdf_resources;
+create policy "LMS admins manage resources"
+on public.lms_pdf_resources for all
+using (public.lms_is_admin())
+with check (public.lms_is_admin());
 
 drop policy if exists "LMS authenticated comments" on public.lms_comments;
 create policy "LMS authenticated comments"

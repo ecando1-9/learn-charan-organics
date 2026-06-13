@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Chrome, GraduationCap, Mail } from "lucide-react";
+import { Chrome, Eye, EyeOff, GraduationCap, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { getBrowserAppUrl } from "@/lib/site-url";
+import { ensureLmsProfile } from "@/lib/supabase/profile";
 
 export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
   const router = useRouter();
@@ -16,6 +17,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const title = mode === "login" ? "Welcome back" : mode === "register" ? "Create your student account" : "Reset your password";
@@ -68,6 +70,15 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
         return;
       }
 
+      if (data.user) {
+        const { error: profileError } = await ensureLmsProfile(supabase, data.user);
+        if (profileError) {
+          setMessage(profileError.message);
+          setLoading(false);
+          return;
+        }
+      }
+
       if (data.session) {
         router.push(redirectTo);
         router.refresh();
@@ -79,11 +90,20 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setMessage(error.message);
       setLoading(false);
       return;
+    }
+
+    if (data.user) {
+      const { error: profileError } = await ensureLmsProfile(supabase, data.user);
+      if (profileError) {
+        setMessage(profileError.message);
+        setLoading(false);
+        return;
+      }
     }
 
     router.push(redirectTo);
@@ -99,7 +119,14 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
         {mode !== "forgot" && <div className="relative py-2 text-center text-xs font-bold uppercase tracking-[0.18em] text-ink/45 dark:text-cream/45">or</div>}
         {mode === "register" && <input value={fullName} onChange={(event) => setFullName(event.target.value)} className="rounded-2xl bg-white p-4 outline-none dark:bg-white/10" placeholder="Full name" />}
         <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required className="rounded-2xl bg-white p-4 outline-none dark:bg-white/10" placeholder="Email address" />
-        {mode !== "forgot" && <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required minLength={6} className="rounded-2xl bg-white p-4 outline-none dark:bg-white/10" placeholder="Password" />}
+        {mode !== "forgot" && (
+          <label className="flex items-center gap-3 rounded-2xl bg-white px-4 dark:bg-white/10">
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? "text" : "password"} required minLength={6} className="min-h-14 w-full bg-transparent outline-none" placeholder="Password" />
+            <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full text-forest/70 transition hover:bg-forest/10 dark:text-cream/70" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </label>
+        )}
         <Button disabled={loading}><Mail size={18} /> {loading ? "Please wait" : mode === "forgot" ? "Send reset link" : mode === "register" ? "Create account" : "Login"}</Button>
       </form>
       {message && <p className="mt-4 rounded-2xl bg-white/70 p-3 text-center text-sm font-semibold text-forest dark:bg-white/10 dark:text-cream">{message}</p>}

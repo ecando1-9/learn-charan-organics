@@ -27,6 +27,8 @@ export type Course = {
   language: string;
   price: number;
   thumbnail: string;
+  youtubeUrl?: string;
+  pdfUrl?: string;
   description: string;
   outcomes: string[];
   materials: string[];

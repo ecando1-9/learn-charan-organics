@@ -4,15 +4,29 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, FileText, Lock, MessageCircle, PlayCircle } from "lucide-react";
 import type { Course, Lesson } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
 
 export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson }) {
   const [watermark, setWatermark] = useState({ x: 18, y: 18 });
-  const student = { name: "Student Name", email: "student@example.com" };
+  const [student, setStudent] = useState({ name: "Student", email: "student" });
 
   useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user;
+      if (!user) return;
+
+      setStudent({
+        name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? "Student",
+        email: user.email ?? "student"
+      });
+    });
+
     const interval = window.setInterval(() => {
       setWatermark({ x: 8 + Math.random() * 68, y: 10 + Math.random() * 66 });
     }, 4200);
+
     return () => window.clearInterval(interval);
   }, []);
 
@@ -22,13 +36,13 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         <div className="relative aspect-video bg-black" onContextMenu={(event) => event.preventDefault()}>
           <iframe
             className="h-full w-full"
-            src={`https://www.youtube-nocookie.com/embed/${lesson.videoId}?rel=0&modestbranding=1&playsinline=1`}
+            src={`https://www.youtube-nocookie.com/embed/${lesson.videoId}?rel=0&modestbranding=1&playsinline=1&disablekb=1`}
             title={lesson.title}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
             allowFullScreen
           />
           <div className="pointer-events-none absolute rounded-full bg-white/12 px-4 py-2 text-xs font-bold text-white/70 backdrop-blur transition-all duration-1000" style={{ left: `${watermark.x}%`, top: `${watermark.y}%` }}>
-            {student.name} • {student.email}
+            {student.name} - {student.email}
           </div>
         </div>
         <div className="p-4 sm:p-6">
@@ -41,7 +55,7 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
           <section className="mt-8 rounded-[2rem] bg-white/8 p-5">
             <h2 className="flex items-center gap-2 text-xl font-black"><MessageCircle size={20} /> Lesson discussion</h2>
             <div className="mt-5 space-y-4">
-              <div className="rounded-2xl bg-white/10 p-4 text-sm"><b>Instructor</b><p className="mt-2 text-cream/70">Post formulation questions here. Replies support nesting, likes, reports and instructor pinning in Supabase.</p></div>
+              <div className="rounded-2xl bg-white/10 p-4 text-sm"><b>Instructor</b><p className="mt-2 text-cream/70">Post formulation questions here. Instructor replies, likes, reports and pinning are stored in Supabase.</p></div>
               <textarea className="min-h-24 w-full rounded-2xl bg-white/10 p-4 outline-none" placeholder="Ask a question about this lesson" />
             </div>
           </section>

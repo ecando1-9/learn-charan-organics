@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Award, BarChart3, BookOpen, FileText, Home, MessageSquare, ReceiptText, Settings, Users } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 const nav = [
   { href: "/admin", label: "Overview", icon: Home },
@@ -16,7 +17,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f4f7f1] dark:bg-[#07140f]">
       <aside className="fixed left-0 top-0 hidden h-screen w-72 border-r border-forest/10 bg-white p-5 xl:block dark:border-white/10 dark:bg-white/5">
-        <Link href="/admin" className="text-xl font-black text-forest dark:text-cream">Admin Panel</Link>
+        <BrandLogo href="/admin" />
         <nav className="mt-8 grid gap-2">{nav.map((item) => <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/70 hover:bg-linen dark:text-cream/70 dark:hover:bg-white/10"><item.icon size={18} /> {item.label}</Link>)}</nav>
       </aside>
       <main className="xl:pl-72">

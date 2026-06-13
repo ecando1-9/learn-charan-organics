@@ -4,10 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
 import { FadeIn } from "@/components/ui/animated";
 import { CourseCard } from "@/components/course/course-card";
-import { courses, diplomaCurriculum, testimonials } from "@/lib/data";
+import { diplomaCurriculum, testimonials } from "@/lib/data";
 import { JoinAcademyCta } from "@/components/home/join-academy-cta";
+import { getPublishedCourses } from "@/lib/course-data";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const courses = await getPublishedCourses();
+  const featuredCourses = courses.filter((course) => course.featured).slice(0, 6);
+
   return (
     <>
       <section className="organic-bg relative min-h-[calc(100svh-4rem)] overflow-hidden text-white">
@@ -52,7 +56,12 @@ export default function HomePage() {
           <Link href="/courses" className="inline-flex items-center gap-2 font-bold text-leaf">View all <ArrowRight size={18} /></Link>
         </div>
         <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {courses.filter((course) => course.featured).map((course) => <CourseCard key={course.slug} course={course} />)}
+          {featuredCourses.length ? featuredCourses.map((course) => <CourseCard key={course.slug} course={course} />) : (
+            <div className="rounded-[2rem] bg-white p-8 text-center shadow-soft dark:bg-white/5 md:col-span-2 lg:col-span-3">
+              <h3 className="text-xl font-black text-forest dark:text-cream">No featured courses yet</h3>
+              <p className="mt-2 text-sm text-ink/60 dark:text-cream/60">Courses added and featured by admin will appear here.</p>
+            </div>
+          )}
         </div>
       </Section>
 

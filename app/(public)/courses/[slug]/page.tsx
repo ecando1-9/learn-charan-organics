@@ -1,25 +1,24 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Award, CheckCircle2, Clock, FileText, Globe2, Lock, PlayCircle, Star, Users } from "lucide-react";
-import { courses } from "@/lib/data";
+import { Award, CheckCircle2, Clock, Copy, FileText, Globe2, Lock, PlayCircle } from "lucide-react";
+import { upiId } from "@/lib/data";
+import { getCourseBySlug } from "@/lib/course-data";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
 
-export function generateStaticParams() {
-  return courses.map((course) => ({ slug: course.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const course = courses.find((item) => item.slug === slug);
+  const course = await getCourseBySlug(slug);
   return { title: course?.title ?? "Course", description: course?.description };
 }
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const course = courses.find((item) => item.slug === slug);
+  const course = await getCourseBySlug(slug);
   if (!course) notFound();
 
   return (
@@ -31,8 +30,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
             <h1 className="mt-6 text-4xl font-black leading-tight sm:text-5xl">{course.title}</h1>
             <p className="mt-4 max-w-3xl text-lg leading-8 text-cream/75">{course.description}</p>
             <div className="mt-6 flex flex-wrap gap-4 text-sm font-semibold text-cream/80">
-              <span className="flex items-center gap-1"><Star className="fill-clay text-clay" size={18} /> {course.rating} rating</span>
-              <span className="flex items-center gap-1"><Users size={18} /> {course.students.toLocaleString()} students</span>
+              <span className="flex items-center gap-1"><PlayCircle size={18} /> 1 protected video</span>
               <span className="flex items-center gap-1"><Clock size={18} /> {course.duration}</span>
               <span className="flex items-center gap-1"><Globe2 size={18} /> {course.language}</span>
             </div>
@@ -45,12 +43,21 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
             </div>
             <div className="p-3">
               <div className="text-3xl font-black">{formatCurrency(course.price)}</div>
-              <Link href={`/learn/${course.slug}/welcome`}><Button className="mt-4 w-full"><PlayCircle size={18} /> Enroll and start</Button></Link>
-              <Button variant="secondary" className="mt-3 w-full">Add to wishlist</Button>
+              <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-semibold leading-6 dark:bg-white/10">
+                <p>Pay using UPI, then request course access from dashboard/admin approval.</p>
+                <p className="mt-2 flex items-center gap-2 text-forest dark:text-cream"><Copy size={16} /> {upiId}</p>
+              </div>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`upi://pay?pa=${upiId}&pn=Charan%20Organics&am=${course.price}&cu=INR&tn=${course.title}`)}`}
+                alt={`UPI QR code for ${course.title}`}
+                className="mx-auto mt-4 size-44 rounded-2xl bg-white p-2"
+              />
+              <Link href="/dashboard"><Button className="mt-4 w-full"><Lock size={18} /> Request enrollment</Button></Link>
+              <Link href={`/learn/${course.slug}/main-video`}><Button variant="secondary" className="mt-3 w-full"><PlayCircle size={18} /> Open if approved</Button></Link>
               <div className="mt-5 grid gap-3 text-sm font-semibold">
-                <span className="flex items-center gap-2"><Award size={17} /> Certificate included</span>
+                <span className="flex items-center gap-2"><Award size={17} /> Certificate after admin approval</span>
                 <span className="flex items-center gap-2"><FileText size={17} /> PDFs and formula sheets</span>
-                <span className="flex items-center gap-2"><Lock size={17} /> Protected student access</span>
+                <span className="flex items-center gap-2"><Lock size={17} /> Video access for approved students</span>
               </div>
             </div>
           </aside>
