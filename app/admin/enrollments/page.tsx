@@ -21,13 +21,24 @@ type EnrollmentRequest = {
 
 export default async function AdminEnrollmentsPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  // Try full query first (with new columns)
+  let { data, error } = await supabase
     .from("lms_enrollment_requests")
     .select("id,status,course_title,amount_inr,upi_id,utr_number,payment_proof_url,selected_all,requested_at,admin_note,lms_profiles(full_name,email)")
     .order("requested_at", { ascending: false });
 
-  const requests = (error ? [] : data ?? []) as unknown as EnrollmentRequest[];
+  // If new columns missing, fall back to base columns
+  if (error && (error.message.includes("utr_number") || error.message.includes("payment_proof_url") || error.message.includes("selected_all"))) {
+    const fallback = await supabase
+      .from("lms_enrollment_requests")
+      .select("id,status,course_title,amount_inr,upi_id,requested_at,admin_note,lms_profiles(full_name,email)")
+      .order("requested_at", { ascending: false });
+    data = fallback.data as unknown as typeof data;
+    error = fallback.error;
+  }
 
+  const requests = (error ? [] : data ?? []) as unknown as EnrollmentRequest[];
   const pending = requests.filter((r) => r.status === "pending");
   const reviewed = requests.filter((r) => r.status !== "pending");
 
@@ -121,12 +132,24 @@ export default async function AdminEnrollmentsPage() {
         </p>
       </div>
 
-      {requests.length === 0 && (
+      {error && (
+        <div className="rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-5">
+          <p className="font-black text-red-700 dark:text-red-400 text-sm">⚠️ Database error — copy this and run the SQL fix in Supabase:</p>
+          <pre className="mt-2 text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap break-all bg-red-100 dark:bg-red-950 rounded-xl p-3">{error.message}</pre>
+          <p className="mt-3 text-xs text-red-600 dark:text-red-400">Go to Supabase → SQL Editor and run the file: <code>supabase/fix_missing_columns.sql</code></p>
+        </div>
+      )}
+
+      {!error && requests.length === 0 && (
         <div className="rounded-[2rem] bg-white p-10 text-center shadow-soft dark:bg-white/5">
           <Clock size={40} className="mx-auto text-ink/20 dark:text-cream/20" />
           <p className="mt-4 font-black text-forest dark:text-cream">No enrollment requests yet</p>
           <p className="mt-2 text-sm text-ink/55 dark:text-cream/55">Requests will appear here when students submit enrollment.</p>
         </div>
+      )}
+
+      {!error && requests.length > 0 && (
+        <p className="text-sm text-leaf font-bold">✓ {requests.length} request(s) loaded from database</p>
       )}
 
       {pending.length > 0 && (
