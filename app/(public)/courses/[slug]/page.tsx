@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Award, CheckCircle2, Clock, Copy, FileText, Globe2, Lock, PlayCircle } from "lucide-react";
-import { upiId } from "@/lib/data";
+import { Award, CheckCircle2, Clock, FileText, Globe2, Lock, PlayCircle } from "lucide-react";
 import { getCourseBySlug } from "@/lib/course-data";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +20,44 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
   const { slug } = await params;
   const course = await getCourseBySlug(slug);
   if (!course) notFound();
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let isEnrolled = false;
+  let hasPendingRequest = false;
+
+  const { data: dbCourse } = await supabase
+    .from("lms_courses")
+    .select("id")
+    .eq("slug", slug)
+    .single();
+
+  if (user && dbCourse) {
+    const { data: enroll } = await supabase
+      .from("lms_enrollments")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("course_id", dbCourse.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (enroll) {
+      isEnrolled = true;
+    } else {
+      const { data: reqs } = await supabase
+        .from("lms_enrollment_requests")
+        .select("course_ids, selected_all")
+        .eq("user_id", user.id)
+        .eq("status", "pending");
+
+      if (reqs && reqs.length > 0) {
+        hasPendingRequest = reqs.some(
+          (r) => r.selected_all || (r.course_ids && r.course_ids.includes(dbCourse.id))
+        );
+      }
+    }
+  }
 
   return (
     <>
@@ -42,18 +80,48 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
               <div className="absolute inset-0 grid place-items-center bg-black/25"><PlayCircle className="text-white" size={54} /></div>
             </div>
             <div className="p-3">
-              <div className="text-3xl font-black">{formatCurrency(course.price)}</div>
-              <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-semibold leading-6 dark:bg-white/10">
-                <p>Pay using UPI, then request course access from dashboard/admin approval.</p>
-                <p className="mt-2 flex items-center gap-2 text-forest dark:text-cream"><Copy size={16} /> {upiId}</p>
-              </div>
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`upi://pay?pa=${upiId}&pn=Charan%20Organics&am=${course.price}&cu=INR&tn=${course.title}`)}`}
-                alt={`UPI QR code for ${course.title}`}
-                className="mx-auto mt-4 size-44 rounded-2xl bg-white p-2"
-              />
-              <Link href="/dashboard"><Button className="mt-4 w-full"><Lock size={18} /> Request enrollment</Button></Link>
-              <Link href={`/learn/${course.slug}/main-video`}><Button variant="secondary" className="mt-3 w-full"><PlayCircle size={18} /> Open if approved</Button></Link>
+              {!isEnrolled && !hasPendingRequest && (
+                <>
+                  <div className="text-3xl font-black text-forest dark:text-cream">{formatCurrency(course.price)}</div>
+                  <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-semibold leading-6 dark:bg-white/10">
+                    <p>Pay using UPI, then request course access from dashboard/admin approval.</p>
+                  </div>
+                  <Link href={`/enroll?course=${course.slug}`} className="mt-4 block">
+                    <Button className="w-full"><Lock size={18} /> Request enrollment</Button>
+                  </Link>
+                </>
+              )}
+
+              {hasPendingRequest && (
+                <div className="mt-2 rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-600 dark:text-amber-400">
+                  <div className="flex items-center gap-2 font-black mb-1">
+                    <Clock size={16} /> Verification Pending
+                  </div>
+                  <p className="text-xs leading-5">
+                    Your request has been submitted. Verification is processed within 48 hours. Check status in settings.
+                  </p>
+                  <Link href="/dashboard/settings" className="mt-3 block">
+                    <Button variant="secondary" className="w-full text-xs min-h-9 py-1">View request status</Button>
+                  </Link>
+                </div>
+              )}
+
+              {isEnrolled && (
+                <div className="mt-2 space-y-3">
+                  <div className="rounded-2xl bg-leaf/10 border border-leaf/20 p-4 text-sm text-leaf">
+                    <div className="flex items-center gap-2 font-black mb-1">
+                      <CheckCircle2 size={16} /> Enrolled
+                    </div>
+                    <p className="text-xs leading-5 text-leaf/80">
+                      You have active access to this course's content and resources.
+                    </p>
+                  </div>
+                  <Link href={`/learn/${course.slug}/main-video`} className="block">
+                    <Button className="w-full"><PlayCircle size={18} /> Start Learning</Button>
+                  </Link>
+                </div>
+              )}
+
               <div className="mt-5 grid gap-3 text-sm font-semibold">
                 <span className="flex items-center gap-2"><Award size={17} /> Certificate after admin approval</span>
                 <span className="flex items-center gap-2"><FileText size={17} /> PDFs and formula sheets</span>
