@@ -84,10 +84,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
               {!isEnrolled && !hasPendingRequest && (
                 <>
                   <div className="text-3xl font-black text-forest dark:text-cream">{formatCurrency(course.price)}</div>
-                  <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-semibold leading-6 dark:bg-white/10">
-                    <p>Pay using UPI, then request course access from dashboard/admin approval.</p>
+                  <div className="mt-3 rounded-2xl bg-leaf/10 border border-leaf/20 px-4 py-3 text-sm font-semibold text-leaf">
+                    💳 Pay using UPI
                   </div>
-                  <Link href={`/enroll?course=${course.slug}`} className="mt-4 block">
+                  <Link href={`/enroll?course=${course.slug}`} className="mt-3 block">
                     <Button className="w-full"><Lock size={18} /> Request enrollment</Button>
                   </Link>
                 </>
