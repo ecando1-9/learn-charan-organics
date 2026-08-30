@@ -1,15 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, List, MessageCircle, PlayCircle, Lock, X } from "lucide-react";
+import { CheckCircle2, FileText, List, MessageCircle, PlayCircle, Lock, X, Loader2 } from "lucide-react";
 import type { Course, Lesson } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { BunnyPlayer } from "@/components/course/bunny-player";
+import { AntiTheft } from "@/components/course/anti-theft";
 
 export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson }) {
   const [watermark, setWatermark] = useState({ x: 18, y: 18 });
   const [student, setStudent] = useState({ name: "Student", email: "student" });
   const [showPlaylist, setShowPlaylist] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+
+  const [videoSource, setVideoSource] = useState<{
+    type: "cloudinary" | "youtube" | "bunny";
+    videoUrl?: string;
+    youtubeVideoId?: string;
+    bunnyVideoId?: string;
+    bunnyLibraryId?: string;
+  } | null>(null);
+  const [loadingVideo, setLoadingVideo] = useState(true);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -27,6 +40,41 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
     }, 4200);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingVideo(true);
+    setVideoError(null);
+    setVideoSource(null);
+
+    fetch(`/api/video/stream?courseSlug=${encodeURIComponent(course.slug)}&lessonSlug=${encodeURIComponent(lesson.slug)}`)
+      .then((res) => {
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            window.location.href = "/unauthorized";
+            return null;
+          }
+          return res.json().then((d) => {
+            throw new Error(d.error || "Failed to load video");
+          });
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (!active || !data) return;
+        setVideoSource(data);
+        setLoadingVideo(false);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setVideoError(err.message);
+        setLoadingVideo(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [course.slug, lesson.slug]);
 
   const PlaylistPanel = () => (
     <div className="flex h-full flex-col">
@@ -72,17 +120,51 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
       <main className="flex flex-col">
         {/* Video */}
         <div
-          className="relative w-full bg-black"
+          className="relative w-full bg-black flex items-center justify-center"
           style={{ aspectRatio: "16/9" }}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <iframe
-            className="h-full w-full"
-            src={`https://www.youtube-nocookie.com/embed/${lesson.videoId}?rel=0&modestbranding=1&playsinline=1&disablekb=1`}
-            title={lesson.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-            allowFullScreen
-          />
+          {loadingVideo ? (
+            <div className="text-center space-y-3">
+              <Loader2 className="mx-auto animate-spin text-leaf" size={32} />
+              <p className="text-sm font-bold text-cream/70">Securing stream...</p>
+            </div>
+          ) : videoError ? (
+            <div className="text-center p-6 max-w-sm">
+              <div className="text-clay text-3xl mb-2">⚠️</div>
+              <p className="text-sm font-bold text-red-400">{videoError}</p>
+            </div>
+          ) : videoSource?.type === "cloudinary" ? (
+            <video
+              className="h-full w-full object-contain"
+              src={videoSource.videoUrl}
+              controls
+              controlsList="nodownload"
+              playsInline
+              disablePictureInPicture
+            />
+          ) : videoSource?.type === "bunny" ? (
+            <div className="w-full h-full">
+              <BunnyPlayer
+                bunnyVideoId={videoSource.bunnyVideoId}
+                bunnyLibraryId={videoSource.bunnyLibraryId}
+                title={lesson.title}
+                autoplay={true}
+                className="rounded-none h-full"
+              />
+            </div>
+          ) : videoSource?.type === "youtube" ? (
+            <iframe
+              className="h-full w-full"
+              src={`https://www.youtube-nocookie.com/embed/${videoSource.youtubeVideoId}?rel=0&modestbranding=1&playsinline=1&disablekb=1`}
+              title={lesson.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+              allowFullScreen
+            />
+          ) : (
+            <div className="text-center text-sm text-cream/60">No video source available.</div>
+          )}
+
           <div
             className="pointer-events-none absolute rounded-full bg-white/12 px-4 py-2 text-xs font-bold text-white/70 backdrop-blur transition-all duration-1000"
             style={{ left: `${watermark.x}%`, top: `${watermark.y}%` }}
@@ -110,9 +192,11 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
             <Button className="bg-leaf hover:bg-moss text-sm">
               <CheckCircle2 size={16} /> Mark complete
             </Button>
-            <Button variant="secondary" className="border-white/10 bg-white/10 text-white hover:bg-white/15 text-sm">
-              <FileText size={16} /> Download notes
-            </Button>
+            {course.pdfUrl && (
+              <Button onClick={() => setShowNotes(true)} variant="secondary" className="border-white/10 bg-white/10 text-white hover:bg-white/15 text-sm">
+                <FileText size={16} /> View notes (Protected)
+              </Button>
+            )}
           </div>
 
           {/* Discussion */}
@@ -147,13 +231,42 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setShowPlaylist(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="absolute bottom-0 left-0 right-0 max-h-[80vh] overflow-hidden rounded-t-3xl bg-[#0e1f18]"
+            className="absolute bottom-0 left-0 right-0 max-h-[80vh] flex flex-col overflow-hidden rounded-t-3xl bg-[#0e1f18] pb-[env(safe-area-inset-bottom)]"
             onClick={(e) => e.stopPropagation()}
           >
             <PlaylistPanel />
           </div>
         </div>
       )}
+
+      {/* Secure PDF Modal */}
+      {showNotes && course.pdfUrl && (
+        <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col backdrop-blur-2xl">
+          <div className="flex justify-between items-center p-4 border-b border-white/10 text-white">
+            <div className="font-bold flex items-center gap-2">
+              <Lock size={18} className="text-leaf" /> Protected Document Viewer
+            </div>
+            <button onClick={() => setShowNotes(false)} className="p-2 hover:bg-white/10 rounded-full transition">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 w-full h-full bg-[#323639] relative">
+             {/* 
+                Direct native PDF embedding is much more reliable than Google Docs viewer, 
+                especially for local testing, private URLs, and large files. 
+                #toolbar=0 hides the download/print bar in most modern browsers (Chrome/Edge). 
+             */}
+             <iframe 
+               src={`${course.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
+               className="w-full h-full border-0" 
+               title="Secure PDF Notes"
+             />
+          </div>
+        </div>
+      )}
+
+      {/* Global Anti-Theft Wrapper */}
+      <AntiTheft />
     </div>
   );
 }

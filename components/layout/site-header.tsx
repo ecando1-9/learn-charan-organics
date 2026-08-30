@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, GraduationCap, Menu, Moon, Search, Sun, UserRound, X } from "lucide-react";
+import { BookOpen, GraduationCap, Menu, Moon, Search, Sun, Users2, UserRound, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,6 @@ import { BrandLogo } from "@/components/brand-logo";
 const links = [
   { href: "/courses", label: "Courses" },
   { href: "/about", label: "Academy" },
-  { href: "/instructors", label: "Instructors" },
   { href: "/blog", label: "Articles" },
   { href: "/contact", label: "Contact" }
 ];
@@ -58,23 +57,49 @@ export function SiteHeader() {
             ))}
           </nav>
           {/* Desktop actions */}
-          <div className="hidden items-center gap-2 md:flex">
-            <Button variant="ghost" className="size-11 px-0" aria-label="Search"><Search size={18} /></Button>
-            <Button variant="ghost" className="size-11 px-0" aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</Button>
+          <div className="hidden items-center gap-6 md:flex">
+            <div className="flex items-center gap-4 text-ink/60 dark:text-cream/60">
+              <button aria-label="Search" className="hover:text-forest dark:hover:text-cream transition"><Search size={18} /></button>
+              <button aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="hover:text-forest dark:hover:text-cream transition">
+                {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+            </div>
+            
+            <div className="h-6 w-px bg-forest/10 dark:bg-white/10" />
+
             {userLabel ? (
-              <>
-                <Link href="/dashboard">
-                  <Button variant="secondary" className="max-w-52">
-                    <UserRound size={17} />
-                    <span className="truncate">{userLabel}</span>
-                  </Button>
+              <div className="flex items-center gap-4">
+                <Link href="/community" className="inline-flex items-center justify-center rounded-full bg-leaf text-white hover:bg-forest px-6 h-10 text-sm font-bold shadow-md transition-transform hover:scale-105">
+                  <Users2 size={18} className="mr-2" /> Groups Chat
                 </Link>
-                <LogoutButton compact />
-              </>
+
+                <div className="relative group">
+                  <button className="grid size-10 place-items-center rounded-full bg-forest text-cream shadow-md transition hover:scale-105 border-2 border-transparent group-hover:border-leaf/50">
+                    <UserRound size={18} />
+                  </button>
+                  <div className="absolute right-0 top-full mt-2 hidden w-48 flex-col rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-forest/10 dark:bg-[#0e1f18] dark:ring-white/10 group-hover:flex">
+                     <div className="px-3 py-2 border-b border-forest/10 dark:border-white/10 mb-1">
+                        <p className="text-xs font-bold text-ink/50 dark:text-cream/50 truncate">{userLabel}</p>
+                     </div>
+                     <Link href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Dashboard</Link>
+                     <Link href="/dashboard/courses" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">My Learning</Link>
+                     <Link href="/dashboard/settings" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Settings</Link>
+                     <div className="mt-1 pt-1 border-t border-forest/10 dark:border-white/10">
+                       <LogoutButton compact />
+                     </div>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <Link href="/login"><Button variant="secondary"><UserRound size={17} /> Login</Button></Link>
+              <div className="flex items-center gap-5">
+                <Link href="/login" className="text-sm font-bold text-ink/80 hover:text-forest dark:text-cream/80 dark:hover:text-cream transition">
+                  Login
+                </Link>
+                <Link href="/register" className="inline-flex items-center justify-center rounded-full bg-leaf text-white hover:bg-forest px-6 h-10 text-sm font-bold shadow-md transition-transform hover:scale-105">
+                  Sign Up
+                </Link>
+              </div>
             )}
-            <Link href="/dashboard"><Button><BookOpen size={17} /> My Learning</Button></Link>
           </div>
           {/* Mobile hamburger */}
           <button
@@ -120,10 +145,10 @@ export function SiteHeader() {
             </nav>
 
             {/* Bottom actions */}
-            <div className="mt-auto border-t border-forest/10 dark:border-white/10 p-4 space-y-3">
+            <div className="mt-auto space-y-3 border-t border-forest/10 p-4 dark:border-white/10">
               <button
                 onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); }}
-                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-ink/75 hover:bg-forest/5 dark:text-cream/80 dark:hover:bg-white/10 transition"
+                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-ink/75 transition hover:bg-forest/5 dark:text-cream/80 dark:hover:bg-white/10"
               >
                 {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
                 {theme === "dark" ? "Light Mode" : "Dark Mode"}
@@ -131,16 +156,19 @@ export function SiteHeader() {
 
               {userLabel ? (
                 <>
-                  <Link href="/dashboard" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest dark:text-cream hover:bg-forest/5 dark:hover:bg-white/10 transition">
+                  <Link href="/dashboard" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
                     <UserRound size={17} /> {userLabel}
                   </Link>
-                  <Link href="/dashboard" className="flex items-center gap-3 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream">
+                  <Link href="/community" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
+                    <Users2 size={17} /> Groups Chat
+                  </Link>
+                  <Link href="/dashboard/courses" className="flex items-center gap-3 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream">
                     <BookOpen size={17} /> My Learning
                   </Link>
                   <LogoutButton compact />
                 </>
               ) : (
-                <Link href="/login" className="flex items-center justify-center gap-2 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream w-full">
+                <Link href="/login" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream">
                   <UserRound size={17} /> Login
                 </Link>
               )}
@@ -150,15 +178,16 @@ export function SiteHeader() {
       )}
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-4 border-t border-forest/10 bg-cream/95 px-2 py-2 backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-forest/95">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-forest/10 bg-cream/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-forest/95">
         {[
           { href: "/", label: "Home", icon: GraduationCap },
           { href: "/courses", label: "Courses", icon: Search },
+          { href: "/community", label: "Groups", icon: Users2 },
           { href: "/dashboard", label: "Learn", icon: BookOpen },
-          { href: userLabel ? "/dashboard/settings" : "/login", label: "Account", icon: UserRound }
+          { href: userLabel ? "/dashboard/settings" : "/login", label: "Profile", icon: UserRound }
         ].map((item) => (
           <Link key={item.href} href={item.href} className={cn(
-            "flex flex-col items-center gap-1 rounded-2xl px-2 py-1.5 text-[11px] font-semibold transition",
+            "flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-[10px] font-semibold transition",
             pathname === item.href
               ? "text-forest dark:text-leaf"
               : "text-ink/50 dark:text-cream/50"

@@ -147,16 +147,16 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
 
   const dbLessons = (lessonData ?? []) as DbLesson[];
   const lessonIds = dbLessons.map((lesson) => lesson.id);
-  const videoMap = new Map<string, string>();
+  const videoMap = new Map<string, { youtube_video_id: string; bunny_video_id?: string | null; bunny_library_id?: string | null }>();
 
   if (includeProtectedVideo && lessonIds.length) {
     const { data: videoData } = await supabase
       .from("lms_videos")
-      .select("lesson_id,youtube_video_id")
+      .select("lesson_id,youtube_video_id,bunny_video_id,bunny_library_id")
       .in("lesson_id", lessonIds);
 
-    (videoData ?? []).forEach((video: { lesson_id: string; youtube_video_id: string }) => {
-      videoMap.set(video.lesson_id, video.youtube_video_id);
+    (videoData ?? []).forEach((video: { lesson_id: string; youtube_video_id: string; bunny_video_id?: string | null; bunny_library_id?: string | null }) => {
+      videoMap.set(video.lesson_id, video);
     });
   }
 
@@ -164,13 +164,18 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
     title: module.title,
     lessons: dbLessons
       .filter((lesson) => lesson.module_id === module.id)
-      .map<Lesson>((lesson) => ({
-        slug: lesson.slug,
-        title: lesson.title,
-        duration: "Video lesson",
-        videoId: includeProtectedVideo ? videoMap.get(lesson.id) ?? "" : "",
-        resources: course.pdf_url ? ["PDF notes available"] : ["PDF notes can be attached by admin"]
-      }))
+      .map<Lesson>((lesson) => {
+        const v = includeProtectedVideo ? videoMap.get(lesson.id) : null;
+        return {
+          slug: lesson.slug,
+          title: lesson.title,
+          duration: "Video lesson",
+          videoId: v?.youtube_video_id ?? "",
+          bunnyVideoId: v?.bunny_video_id ?? undefined,
+          bunnyLibraryId: v?.bunny_library_id ?? undefined,
+          resources: course.pdf_url ? ["PDF notes available"] : ["PDF notes can be attached by admin"]
+        };
+      })
   }));
 
   return buildCourse(course, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title, modules);

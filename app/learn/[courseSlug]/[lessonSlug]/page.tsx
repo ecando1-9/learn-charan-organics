@@ -44,7 +44,7 @@ export default async function LearnPage({ params }: { params: Promise<{ courseSl
         .single();
 
       if (profile?.role !== "admin") {
-        redirect(`/courses/${courseSlug}`);
+        redirect("/unauthorized");
       }
     }
   }

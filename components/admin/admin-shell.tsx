@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Award, BarChart3, BookOpen, CreditCard, FileText, Home, MessageSquare, ReceiptText, Settings, Users } from "lucide-react";
+import { Award, BarChart3, BookOpen, CreditCard, FileText, Home, MessageSquare, ReceiptText, Settings, Users, Users2, Youtube } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { LogoutButton } from "@/components/logout-button";
 
@@ -12,7 +12,9 @@ const nav = [
   { href: "/admin/revenue", label: "Revenue", icon: BarChart3 },
   { href: "/admin/comments", label: "Comments", icon: MessageSquare },
   { href: "/admin/certificates", label: "Certificates", icon: Award },
-  { href: "/admin/content", label: "Content", icon: FileText }
+  { href: "/admin/content", label: "Content", icon: FileText },
+  { href: "/admin/free-classes", label: "Free Classes", icon: Youtube },
+  { href: "/admin/community", label: "Community", icon: Users2 }
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const { data } = await supabase.auth.getUser();
-  const isPrivate = request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/learn");
+  const isPrivate = request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/learn") || request.nextUrl.pathname.startsWith("/community");
   const isAdmin = request.nextUrl.pathname.startsWith("/admin");
 
   if ((isPrivate || isAdmin) && !data.user) {
@@ -61,5 +61,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/learn/:path*", "/admin/:path*"]
+  matcher: ["/", "/dashboard/:path*", "/learn/:path*", "/admin/:path*", "/community/:path*"]
 };

@@ -125,3 +125,44 @@ export async function rejectEnrollment(requestId: string, note?: string) {
   revalidatePath("/admin/enrollments");
   return { success: true };
 }
+
+export async function deEnrollStudent(userId: string, courseIds: string[]) {
+  const supabase = await createClient();
+
+  // Verify acting user is admin
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("lms_profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") {
+    return { error: "Not authorized" };
+  }
+
+  if (courseIds.length === 0) {
+    // If no courseIds provided, de-enroll from all
+    const { error } = await supabase
+      .from("lms_enrollments")
+      .delete()
+      .eq("user_id", userId);
+
+    if (error) return { error: error.message };
+  } else {
+    // De-enroll from specific courses
+    const { error } = await supabase
+      .from("lms_enrollments")
+      .delete()
+      .eq("user_id", userId)
+      .in("course_id", courseIds);
+
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${userId}`);
+  return { success: true };
+}

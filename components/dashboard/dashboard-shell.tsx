@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { Award, Bell, BookOpen, Heart, Home, Settings, UserRound } from "lucide-react";
+import { Award, Bell, BookOpen, Home, Settings, UserRound, Users2 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { BrandLogo } from "@/components/brand-logo";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: Home },
   { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
+  { href: "/community", label: "Community", icon: Users2 },
   { href: "/dashboard/certificates", label: "Certificates", icon: Award },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings }
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {

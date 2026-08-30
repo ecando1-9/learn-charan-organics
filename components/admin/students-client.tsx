@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Search, Users, ShieldAlert, GraduationCap, UserMinus } from "lucide-react";
 
 type Profile = {
@@ -185,12 +186,12 @@ export function StudentsClient({ initialStudents }: { initialStudents: Profile[]
               </div>
 
               {/* Actions */}
-              <a
+              <Link
                 href={`/admin/students/${student.id}`}
                 className="rounded-full bg-forest px-4 py-2 text-center text-sm font-bold text-white hover:bg-leaf transition active:scale-95"
               >
                 View Details
-              </a>
+              </Link>
             </div>
           ))}
         </div>
