@@ -17,6 +17,8 @@ type DbCourse = {
   language: string;
   duration_minutes: number;
   featured: boolean;
+  published?: boolean;
+  created_at?: string;
 };
 
 type DbCategory = {
@@ -37,6 +39,7 @@ type DbLesson = {
   slug: string;
   description: string | null;
   sort_order: number;
+  is_preview: boolean;
 };
 
 function toLevel(level: DbCourse["level"]): CourseLevel {
@@ -45,21 +48,31 @@ function toLevel(level: DbCourse["level"]): CourseLevel {
   return "Beginner";
 }
 
-function youtubeIdFromUrl(url: string | null) {
+function youtubeIdFromUrl(url: string | null | undefined): string {
   if (!url) return "";
-  return url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1]
-    ?? url.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1]
-    ?? url.match(/embed\/([a-zA-Z0-9_-]+)/)?.[1]
-    ?? url;
+  return (
+    url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1] ??
+    url.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1] ??
+    url.match(/embed\/([a-zA-Z0-9_-]+)/)?.[1] ??
+    url
+  );
 }
 
-function defaultThumbnail(course: DbCourse) {
+import { getBunnyThumbnailUrl } from "@/lib/bunny";
+
+function defaultThumbnail(course: DbCourse & { bunny_video_id?: string | null }) {
+  if (course.bunny_video_id) {
+    const bunnyThumb = getBunnyThumbnailUrl(course.bunny_video_id);
+    if (bunnyThumb) return bunnyThumb;
+  }
   const videoId = youtubeIdFromUrl(course.youtube_url);
-  return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png";
+  if (videoId) return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  return "/globe.svg";
 }
 
 function buildCourse(course: DbCourse, categoryName: string, modules: Module[] = []): Course {
   return {
+    id: course.id,
     slug: course.slug,
     title: course.title,
     category: categoryName || course.title,
@@ -69,7 +82,7 @@ function buildCourse(course: DbCourse, categoryName: string, modules: Module[] =
     duration: course.duration_minutes > 0 ? `${course.duration_minutes} min` : "Video lesson",
     level: toLevel(course.level),
     language: course.language,
-    price: course.price_inr,
+    price: (course.is_free === true || Number(course.price_inr ?? 0) === 0) ? 0 : course.price_inr,
     thumbnail: course.thumbnail_url || defaultThumbnail(course),
     youtubeUrl: course.youtube_url || undefined,
     pdfUrl: course.pdf_url || undefined,
@@ -83,8 +96,30 @@ function buildCourse(course: DbCourse, categoryName: string, modules: Module[] =
     materials: ["Ingredients as explained in video", "Digital weighing scale", "Mixing tools", "Clean containers", "Notebook for formulation notes"],
     modules,
     featured: course.featured,
-    trending: false
+    trending: false,
+    createdAt: course.created_at || new Date().toISOString()
   };
+}
+
+export async function getUserEnrolledCourseIds(): Promise<string[]> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return [];
+
+    const { data } = await supabase
+      .from("lms_enrollments")
+      .select("course_id")
+      .eq("user_id", user.id)
+      .eq("status", "active");
+
+    return (data ?? []).map((e) => e.course_id);
+  } catch {
+    return [];
+  }
 }
 
 async function getCategoryMap(categoryIds: string[]) {
@@ -105,12 +140,11 @@ export async function getPublishedCourses() {
   const { data, error } = await supabase
     .from("lms_courses")
     .select("*")
-    .eq("published", true)
     .order("sort_order", { ascending: true });
 
   if (error || !data) return [];
 
-  const dbCourses = data as DbCourse[];
+  const dbCourses = (data as DbCourse[]).filter((c) => c.published !== false);
   const categoryMap = await getCategoryMap(dbCourses.map((course) => course.category_id).filter(Boolean) as string[]);
   return dbCourses.map((course) => buildCourse(course, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title));
 }
@@ -122,8 +156,7 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
     .from("lms_courses")
     .select("*")
     .eq("slug", slug)
-    .eq("published", true)
-    .single();
+    .maybeSingle();
 
   if (error || !courseData) return null;
 
@@ -140,7 +173,7 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
   const { data: lessonData } = moduleIds.length
     ? await supabase
       .from("lms_lessons")
-      .select("id,module_id,title,slug,description,sort_order")
+      .select("id,module_id,title,slug,description,sort_order,is_preview")
       .in("module_id", moduleIds)
       .order("sort_order", { ascending: true })
     : { data: [] };
@@ -160,7 +193,9 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
     });
   }
 
-  const modules = dbModules.map<Module>((module) => ({
+  const defaultVideoId = youtubeIdFromUrl(course.youtube_url);
+
+  let modules = dbModules.map<Module>((module) => ({
     title: module.title,
     lessons: dbLessons
       .filter((lesson) => lesson.module_id === module.id)
@@ -170,13 +205,35 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
           slug: lesson.slug,
           title: lesson.title,
           duration: "Video lesson",
-          videoId: v?.youtube_video_id ?? "",
+          is_preview: lesson.is_preview ?? false,
+          videoId: v?.youtube_video_id || defaultVideoId,
           bunnyVideoId: v?.bunny_video_id ?? undefined,
           bunnyLibraryId: v?.bunny_library_id ?? undefined,
           resources: course.pdf_url ? ["PDF notes available"] : ["PDF notes can be attached by admin"]
         };
       })
   }));
+
+  // Fallback: If no modules/lessons exist in DB for this course, create a default "main-video" lesson using course.youtube_url
+  if (modules.length === 0 || modules.every((m) => m.lessons.length === 0)) {
+    modules = [
+      {
+        title: "Course Video",
+        lessons: [
+          {
+            slug: "main-video",
+            title: course.title,
+            duration: course.duration_minutes > 0 ? `${course.duration_minutes} min` : "Video lesson",
+            is_preview: true,
+            videoId: defaultVideoId,
+            bunnyVideoId: undefined,
+            bunnyLibraryId: undefined,
+            resources: course.pdf_url ? ["PDF notes available"] : ["PDF notes can be attached by admin"]
+          }
+        ]
+      }
+    ];
+  }
 
   return buildCourse(course, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title, modules);
 }

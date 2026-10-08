@@ -53,9 +53,20 @@ export function AntiTheft() {
       setTimeout(() => setWarning(false), 3000);
     };
 
-    // Obscure screen when window loses focus (often happens when snipping tool is activated)
-    const handleBlur = () => setIsFocused(false);
-    const handleFocus = () => setIsFocused(true);
+    // Obscure screen when window loses focus — but ONLY if:
+    // 1. Focus didn't just move to an iframe (e.g. clicking the video player)
+    // 2. The user has been away for more than 5 seconds
+    let blurTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleBlur = () => {
+      // If focus moved into an iframe (video player click), ignore it
+      if (document.activeElement instanceof HTMLIFrameElement) return;
+      blurTimer = setTimeout(() => setIsFocused(false), 5000);
+    };
+    const handleFocus = () => {
+      if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
+      setIsFocused(true);
+    };
 
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("keydown", handleKeyDown);
@@ -67,6 +78,7 @@ export function AntiTheft() {
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
+      if (blurTimer) clearTimeout(blurTimer);
     };
   }, []);
 

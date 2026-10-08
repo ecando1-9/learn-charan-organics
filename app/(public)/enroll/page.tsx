@@ -4,21 +4,30 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ChevronRight,
-  Copy, Loader2, PackageCheck, Upload, X,
+  Copy, Loader2, PackageCheck, PlayCircle, Upload, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
+import { submitEnrollmentRequest } from "@/app/actions/enrollment";
 
 const UPI_ID = "8985482084@hdfc";
-const SINGLE_PRICE = 199;
 const ALL_PRICE = 10000;
 
-type Course = { id: string; title: string; slug: string; thumbnail_url: string | null; youtube_url: string | null };
+type Course = {
+  id: string;
+  title: string;
+  slug: string;
+  thumbnail_url: string | null;
+  youtube_url: string | null;
+  price_inr: number;
+  is_free: boolean;
+};
 
 function getThumbnail(c: Course) {
   if (c.thumbnail_url) return c.thumbnail_url;
-  const match = c.youtube_url?.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1]
-    ?? c.youtube_url?.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1];
+  const match =
+    c.youtube_url?.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1] ??
+    c.youtube_url?.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1];
   return match
     ? `https://img.youtube.com/vi/${match}/hqdefault.jpg`
     : "https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png";
@@ -30,10 +39,12 @@ export default function EnrollPage() {
   const preselect = searchParams.get("course");
 
   const [step, setStep] = useState(1);
+  // Only paid courses shown here
   const [courses, setCourses] = useState<Course[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [redirectingFree, setRedirectingFree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [utr, setUtr] = useState("");
@@ -47,21 +58,43 @@ export default function EnrollPage() {
     const supabase = createClient();
     supabase
       .from("lms_courses")
-      .select("id,title,slug,thumbnail_url,youtube_url")
+      .select("id,title,slug,thumbnail_url,youtube_url,price_inr,is_free")
       .eq("published", true)
-      .order("title", { ascending: true })
+      .order("sort_order", { ascending: true })
       .then(({ data }) => {
-        const list = (data ?? []) as Course[];
-        setCourses(list);
+        const all = (data ?? []) as Course[];
+
+        // If a specific free course slug was linked, redirect to watch immediately
         if (preselect) {
-          const found = list.find((c) => c.slug === preselect);
-          if (found) setSelected(new Set([found.id]));
+          const found = all.find((c) => c.slug === preselect);
+          if (found && (found.is_free || Number(found.price_inr) === 0)) {
+            setRedirectingFree(true);
+            router.replace(`/learn/${found.slug}/main-video`);
+            return;
+          }
+          if (found) {
+            setSelected(new Set([found.id]));
+          }
         }
+
+        // Only show paid courses on enroll page
+        const paid = all.filter((c) => !c.is_free && Number(c.price_inr) > 0);
+        setCourses(paid);
         setLoading(false);
       });
-  }, [preselect]);
+  }, [preselect, router]);
 
-  const totalAmount = selectAll ? ALL_PRICE : selected.size * SINGLE_PRICE;
+  // Price per course from DB, or ₹199 fallback
+  function coursePrice(c: Course) {
+    return Number(c.price_inr) > 0 ? Number(c.price_inr) : 199;
+  }
+
+  const totalAmount = selectAll
+    ? ALL_PRICE
+    : courses
+        .filter((c) => selected.has(c.id))
+        .reduce((sum, c) => sum + coursePrice(c), 0);
+
   const selectedCourses = courses.filter((c) => selectAll || selected.has(c.id));
 
   function toggleCourse(id: string) {
@@ -86,32 +119,21 @@ export default function EnrollPage() {
   }
 
   function copyTextFallback(text: string) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      document.execCommand("copy");
-    } catch (err) {
-      console.warn("Fallback copy failed:", err);
-    }
-    document.body.removeChild(textArea);
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch { /* ignore */ }
+    document.body.removeChild(ta);
   }
 
   function copyUpi() {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+    if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(UPI_ID)
-        .then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        })
-        .catch(() => {
-          copyTextFallback(UPI_ID);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        });
+        .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+        .catch(() => { copyTextFallback(UPI_ID); setCopied(true); setTimeout(() => setCopied(false), 2000); });
     } else {
       copyTextFallback(UPI_ID);
       setCopied(true);
@@ -121,7 +143,7 @@ export default function EnrollPage() {
 
   async function handleSubmit() {
     if (!utr && !proofFile) {
-      setError("Please enter UTR number or upload payment screenshot.");
+      setError("Please enter your UTR number or upload a payment screenshot.");
       return;
     }
     setError("");
@@ -131,38 +153,25 @@ export default function EnrollPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError("Please log in first."); setSubmitting(false); return; }
 
-    let paymentProofUrl: string | null = null;
-    if (proofFile) {
-      const ext = proofFile.name.split(".").pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("payment-proofs")
-        .upload(path, proofFile, { upsert: true });
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from("payment-proofs").getPublicUrl(path);
-        paymentProofUrl = urlData.publicUrl;
-      }
-    }
-
     const courseIds = selectAll ? courses.map((c) => c.id) : [...selected];
     const courseTitles = selectAll
       ? "All Courses Bundle"
       : selectedCourses.map((c) => c.title).join(", ");
 
-    const { error: insertError } = await supabase.from("lms_enrollment_requests").insert({
-      user_id: user.id,
-      course_title: courseTitles,
-      course_ids: courseIds,
-      amount_inr: totalAmount,
-      upi_id: UPI_ID,
-      utr_number: utr || null,
-      payment_proof_url: paymentProofUrl,
-      selected_all: selectAll,
-      status: "pending",
-    });
+    const formData = new FormData();
+    courseIds.forEach((courseId) => formData.append("course_ids", courseId));
+    formData.set("course_titles", courseTitles);
+    formData.set("amount", String(totalAmount));
+    formData.set("utr_number", utr);
+    formData.set("selected_all", String(selectAll));
+    if (proofFile) {
+      formData.set("proof_file", proofFile);
+    }
+
+    const result = await submitEnrollmentRequest(formData);
 
     setSubmitting(false);
-    if (insertError) { setError(insertError.message); return; }
+    if (result?.error) { setError(result.error); return; }
     setDone(true);
   }
 
@@ -170,6 +179,21 @@ export default function EnrollPage() {
     `upi://pay?pa=${UPI_ID}&pn=Charan%20Organics&am=${totalAmount}&cu=INR&tn=Course%20Enrollment`
   );
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${qrData}`;
+
+  /* ── Redirecting to free class ── */
+  if (redirectingFree) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4">
+        <div className="grid size-16 place-items-center rounded-full bg-leaf/10">
+          <PlayCircle size={32} className="text-leaf" />
+        </div>
+        <p className="text-base font-bold text-forest dark:text-cream">
+          This is a free class — taking you to the video…
+        </p>
+        <Loader2 size={20} className="animate-spin text-leaf" />
+      </div>
+    );
+  }
 
   /* ── DONE STATE ── */
   if (done) {
@@ -181,7 +205,7 @@ export default function EnrollPage() {
           </div>
           <h1 className="mt-6 text-2xl font-black text-forest dark:text-cream">Request Submitted!</h1>
           <p className="mt-3 text-sm leading-6 text-ink/60 dark:text-cream/60">
-            Your enrollment request has been sent to the admin. You will get access once it is approved.
+            Your payment request has been sent to the admin. You'll get full access once it's approved — usually within 48 hours.
           </p>
           <button
             onClick={() => router.push("/dashboard")}
@@ -232,15 +256,15 @@ export default function EnrollPage() {
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
 
-        {/* ══════════ STEP 1 ══════════ */}
+        {/* ══════════ STEP 1: Select Courses ══════════ */}
         {step === 1 && (
           <div>
             <h2 className="text-2xl font-black text-forest dark:text-cream">Choose your courses</h2>
             <p className="mt-1 text-sm text-ink/60 dark:text-cream/60">
-              ₹{SINGLE_PRICE} per course &nbsp;·&nbsp; ₹{ALL_PRICE.toLocaleString("en-IN")} for all courses
+              Select one or more paid courses · ₹{ALL_PRICE.toLocaleString("en-IN")} for all courses bundle
             </p>
 
-            {/* Select All toggle */}
+            {/* Select All Bundle */}
             <button
               onClick={toggleSelectAll}
               className={`mt-5 flex w-full items-center gap-4 rounded-[1.5rem] border-2 p-4 text-left transition ${
@@ -257,7 +281,7 @@ export default function EnrollPage() {
               <div className="flex-1">
                 <p className="font-black text-forest dark:text-cream">All Courses Bundle</p>
                 <p className="text-sm text-ink/60 dark:text-cream/60">
-                  Access all {courses.length} courses + any future courses added
+                  Access all {courses.length} paid courses + future additions
                 </p>
               </div>
               <span className="text-xl font-black text-leaf">₹10,000</span>
@@ -271,6 +295,7 @@ export default function EnrollPage() {
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {courses.map((course) => {
                   const isChecked = selectAll || selected.has(course.id);
+                  const price = coursePrice(course);
                   return (
                     <button
                       key={course.id}
@@ -290,7 +315,7 @@ export default function EnrollPage() {
                         <p className="line-clamp-2 text-sm font-bold leading-5 text-forest dark:text-cream">
                           {course.title}
                         </p>
-                        <p className="mt-1 text-xs font-bold text-leaf">₹{SINGLE_PRICE}</p>
+                        <p className="mt-1 text-xs font-black text-leaf">₹{price.toLocaleString("en-IN")}</p>
                       </div>
                       <div
                         className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2 transition ${
@@ -310,9 +335,13 @@ export default function EnrollPage() {
               <div className="rounded-[1.5rem] bg-forest px-5 py-4 text-white shadow-soft flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm text-white/70">
-                    {selectAll ? "All courses bundle" : `${selected.size} course${selected.size !== 1 ? "s" : ""} selected`}
+                    {selectAll
+                      ? "All courses bundle"
+                      : `${selected.size} course${selected.size !== 1 ? "s" : ""} selected`}
                   </p>
-                  <p className="text-2xl font-black">{formatCurrency(totalAmount)}</p>
+                  <p className="text-2xl font-black">
+                    {totalAmount > 0 ? formatCurrency(totalAmount) : "₹0"}
+                  </p>
                 </div>
                 <button
                   onClick={() => setStep(2)}
@@ -326,7 +355,7 @@ export default function EnrollPage() {
           </div>
         )}
 
-        {/* ══════════ STEP 2 ══════════ */}
+        {/* ══════════ STEP 2: Payment ══════════ */}
         {step === 2 && (
           <div className="mx-auto max-w-lg">
             <h2 className="text-2xl font-black text-forest dark:text-cream">Pay via UPI</h2>
@@ -361,7 +390,7 @@ export default function EnrollPage() {
                 </div>
               </div>
               <p className="mt-3 text-center text-xs text-ink/50 dark:text-cream/50">
-                Scan with PhonePe, GPay, Paytm or any UPI app
+                Scan with PhonePe, GPay, Paytm, or any UPI app
               </p>
             </div>
 
@@ -372,7 +401,10 @@ export default function EnrollPage() {
                   <li className="text-sm text-ink/70 dark:text-cream/70">All {courses.length} courses bundle</li>
                 ) : (
                   selectedCourses.map((c) => (
-                    <li key={c.id} className="text-sm text-ink/70 dark:text-cream/70">• {c.title}</li>
+                    <li key={c.id} className="flex items-center justify-between text-sm text-ink/70 dark:text-cream/70">
+                      <span>• {c.title}</span>
+                      <span className="font-bold text-leaf text-xs">₹{coursePrice(c).toLocaleString("en-IN")}</span>
+                    </li>
                   ))
                 )}
               </ul>
@@ -395,7 +427,7 @@ export default function EnrollPage() {
           </div>
         )}
 
-        {/* ══════════ STEP 3 ══════════ */}
+        {/* ══════════ STEP 3: Confirm ══════════ */}
         {step === 3 && (
           <div className="mx-auto max-w-lg">
             <h2 className="text-2xl font-black text-forest dark:text-cream">Confirm your payment</h2>

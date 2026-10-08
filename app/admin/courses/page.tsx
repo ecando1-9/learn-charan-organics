@@ -16,16 +16,29 @@ export type AdminCourse = {
   published: boolean;
   created_at: string;
   sort_order: number;
+  bunny_video_id?: string | null;
 };
 
 export default async function AdminCoursesPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("lms_courses")
-    .select("id,slug,title,description,thumbnail_url,youtube_url,pdf_url,price_inr,published,created_at,sort_order")
+    .select(`
+      id,slug,title,description,thumbnail_url,youtube_url,pdf_url,price_inr,published,created_at,sort_order,
+      lms_modules (
+        lms_lessons (
+          lms_videos (
+            bunny_video_id
+          )
+        )
+      )
+    `)
     .order("sort_order", { ascending: true });
 
-  const courses = (data ?? []) as AdminCourse[];
+  const courses = (data ?? []).map((row: any) => ({
+    ...row,
+    bunny_video_id: row.lms_modules?.[0]?.lms_lessons?.[0]?.lms_videos?.[0]?.bunny_video_id ?? null,
+  })) as AdminCourse[];
 
   return (
     <div className="space-y-6">

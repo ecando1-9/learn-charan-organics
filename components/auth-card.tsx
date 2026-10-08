@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getBrowserAppUrl } from "@/lib/site-url";
-import { ensureLmsProfile } from "@/lib/supabase/profile";
+import { syncUserProfile } from "@/app/actions/sync-profile";
 
 export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
   const router = useRouter();
@@ -66,8 +66,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
       });
       if (error) { setMessage({ text: error.message, type: "error" }); setLoading(false); return; }
       if (data.user) {
-        const { error: profileError } = await ensureLmsProfile(supabase, data.user);
-        if (profileError) { setMessage({ text: profileError.message, type: "error" }); setLoading(false); return; }
+        await syncUserProfile();
       }
       if (data.session) { router.push(redirectTo); router.refresh(); return; }
       setMessage({ text: "Account created! Please verify your email to continue.", type: "success" });
@@ -78,8 +77,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) { setMessage({ text: error.message, type: "error" }); setLoading(false); return; }
     if (data.user) {
-      const { error: profileError } = await ensureLmsProfile(supabase, data.user);
-      if (profileError) { setMessage({ text: profileError.message, type: "error" }); setLoading(false); return; }
+      await syncUserProfile();
     }
     router.push(redirectTo);
     router.refresh();

@@ -9,48 +9,51 @@ export default async function LearnPage({ params }: { params: Promise<{ courseSl
   const { courseSlug, lessonSlug } = await params;
   const supabase = await createClient();
 
-  // Must be logged in
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?redirectTo=/learn/${courseSlug}/${lessonSlug}`);
-
   const course = await getCourseBySlug(courseSlug, true);
   if (!course) notFound();
 
-  const lesson = course.modules.flatMap((m) => m.lessons).find((l) => l.slug === lessonSlug);
+  let lesson = course.modules.flatMap((m) => m.lessons).find((l) => l.slug === lessonSlug);
+  if (!lesson) {
+    lesson = course.modules[0]?.lessons[0];
+  }
   if (!lesson) notFound();
 
-  // Check enrollment
-  const { data: dbCourse } = await supabase
-    .from("lms_courses")
-    .select("id")
-    .eq("slug", courseSlug)
-    .single();
+  // A class is FREE if course price is 0 OR if the lesson is marked as a free preview
+  const isFree = course.price === 0 || lesson.is_preview === true;
 
-  if (dbCourse) {
-    const { data: enrollment } = await supabase
-      .from("lms_enrollments")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("course_id", dbCourse.id)
-      .eq("status", "active")
-      .maybeSingle();
+  // Paid, non-preview lessons require login + active enrollment (or admin status)
+  if (!isFree) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      redirect(`/login?redirectTo=/learn/${courseSlug}/${lessonSlug}`);
+    }
 
-    if (!enrollment) {
-      // Check if admin (admins can always preview)
-      const { data: profile } = await supabase
-        .from("lms_profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+    if (course.id) {
+      const { data: enrollment } = await supabase
+        .from("lms_enrollments")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("course_id", course.id)
+        .eq("status", "active")
+        .maybeSingle();
 
-      if (profile?.role !== "admin") {
-        redirect("/unauthorized");
+      if (!enrollment) {
+        // Check if admin (admins can always view any lesson)
+        const { data: profile } = await supabase
+          .from("lms_profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.role !== "admin") {
+          redirect("/unauthorized");
+        }
       }
     }
   }
 
-  // If video not linked yet — show a friendly message instead of 404
-  if (!lesson.videoId) {
+  // If video not linked yet — show a friendly message
+  if (!lesson.videoId && !lesson.bunnyVideoId) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#07140f] text-cream">
         <div className="text-center px-6">

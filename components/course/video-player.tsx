@@ -47,6 +47,38 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
     setVideoError(null);
     setVideoSource(null);
 
+    const isFree = course.price === 0 || lesson.is_preview === true;
+
+    if (isFree) {
+      const getYtId = (url?: string) => {
+        if (!url) return "";
+        return (
+          url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1] ??
+          url.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1] ??
+          url.match(/embed\/([a-zA-Z0-9_-]+)/)?.[1] ??
+          url
+        );
+      };
+
+      const ytId = lesson.videoId || getYtId(course.youtubeUrl);
+      if (lesson.bunnyVideoId) {
+        setVideoSource({
+          type: "bunny",
+          bunnyVideoId: lesson.bunnyVideoId,
+          bunnyLibraryId: lesson.bunnyLibraryId,
+        });
+      } else if (ytId) {
+        setVideoSource({
+          type: "youtube",
+          youtubeVideoId: ytId,
+        });
+      } else {
+        setVideoError("No video linked yet for this class.");
+      }
+      setLoadingVideo(false);
+      return;
+    }
+
     fetch(`/api/video/stream?courseSlug=${encodeURIComponent(course.slug)}&lessonSlug=${encodeURIComponent(lesson.slug)}`)
       .then((res) => {
         if (!res.ok) {
@@ -76,6 +108,10 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
     };
   }, [course.slug, lesson.slug]);
 
+  useEffect(() => {
+    // Video watch analytics are powered directly by Bunny Stream CDN API (0 Supabase logs)
+  }, [videoSource, loadingVideo, course.slug, course.title, lesson.slug, lesson.title]);
+
   const PlaylistPanel = () => (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-white/10 p-4">
@@ -88,8 +124,8 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {course.modules.map((module) => (
-          <div key={module.title}>
+        {course.modules.map((module, idx) => (
+          <div key={`${module.title}-${idx}`}>
             <h3 className="mb-2 text-sm font-bold text-moss">{module.title}</h3>
             {module.lessons.map((item) => (
               <a
@@ -102,7 +138,7 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  {item.preview ? <PlayCircle size={16} /> : <Lock size={16} />}
+                  {item.is_preview ? <PlayCircle size={16} /> : <Lock size={16} />}
                   <span className="line-clamp-1">{item.title}</span>
                 </span>
                 <span className="shrink-0 text-xs">{item.duration}</span>
@@ -115,7 +151,7 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#07140f] text-cream lg:grid lg:grid-cols-[1fr_360px]">
+    <div className="flex flex-1 flex-col bg-[#07140f] text-cream lg:grid lg:grid-cols-[1fr_360px] min-h-[calc(100vh-4rem)]">
       {/* Main video area */}
       <main className="flex flex-col">
         {/* Video */}
@@ -144,15 +180,13 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
               disablePictureInPicture
             />
           ) : videoSource?.type === "bunny" ? (
-            <div className="w-full h-full">
-              <BunnyPlayer
-                bunnyVideoId={videoSource.bunnyVideoId}
-                bunnyLibraryId={videoSource.bunnyLibraryId}
-                title={lesson.title}
-                autoplay={true}
-                className="rounded-none h-full"
-              />
-            </div>
+            <iframe
+              className="h-full w-full border-0"
+              src={`https://iframe.mediadelivery.net/embed/${videoSource.bunnyLibraryId}/${videoSource.bunnyVideoId}?autoplay=true&responsive=true`}
+              title={lesson.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+              allowFullScreen
+            />
           ) : videoSource?.type === "youtube" ? (
             <iframe
               className="h-full w-full"

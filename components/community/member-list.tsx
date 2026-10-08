@@ -12,7 +12,7 @@ function getInitials(name: string | null, email: string): string {
   return email[0].toUpperCase();
 }
 
-export function MemberList({ members }: { members: GroupMember[] }) {
+export function MemberList({ members, isAdmin = false }: { members: GroupMember[]; isAdmin?: boolean }) {
   return (
     <div className="rounded-[2rem] bg-white p-5 shadow-soft dark:bg-white/5">
       <h3 className="flex items-center gap-2 font-black text-forest dark:text-cream">
@@ -30,9 +30,9 @@ export function MemberList({ members }: { members: GroupMember[] }) {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-forest dark:text-cream">
-                  {name ?? email}
+                  {name ?? "Student"}
                 </p>
-                {name && (
+                {isAdmin && email && (
                   <p className="truncate text-xs text-ink/50 dark:text-cream/50">
                     {email}
                   </p>

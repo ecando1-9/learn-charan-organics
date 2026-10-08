@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   CheckCircle2, Image as ImageIcon, IndianRupee,
-  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube,
+  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import type { Course } from "@/lib/types";
+import { notifyAllUsersNewCourse } from "@/app/actions/notifications";
 
 /* ─────────────────── helpers ─────────────────── */
 function slugify(v: string) {
@@ -44,48 +45,90 @@ export function AddCourseModal() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [bunnyVideoId, setBunnyVideoId] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
+  const [isFree, setIsFree] = useState(false);
   const [price, setPrice] = useState("199");
+  const [published, setPublished] = useState(true);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [description, setDescription] = useState("");
-  const [sortOrder, setSortOrder] = useState("999");
+  const [sortOrder, setSortOrder] = useState("1");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   function reset() {
-    setTitle(""); setYoutubeUrl(""); setPdfUrl("");
-    setPrice("199"); setThumbnailUrl(""); setDescription(""); setSortOrder("999"); setMessage(null);
+    setTitle(""); setYoutubeUrl(""); setBunnyVideoId(""); setPdfUrl("");
+    setIsFree(false); setPrice("199"); setPublished(true);
+    setThumbnailUrl(""); setDescription(""); setSortOrder("1"); setMessage(null);
   }
   function close() { setOpen(false); reset(); }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!title || !youtubeUrl) {
-      setMessage({ type: "error", text: "Course name and YouTube link are required." });
+    if (!title || (!youtubeUrl && !bunnyVideoId)) {
+      setMessage({ type: "error", text: "Course name and a video (YouTube link or Bunny Video ID) are required." });
       return;
     }
     setLoading(true); setMessage(null);
     const supabase = createClient();
     const courseSlug = slugify(title);
-    const videoId = getYoutubeId(youtubeUrl);
-    const finalThumb = thumbnailUrl.trim() || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    const videoId = youtubeUrl ? getYoutubeId(youtubeUrl) : "dummy";
+    const finalThumb = thumbnailUrl.trim() || (youtubeUrl ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "");
+    const finalPrice = isFree ? 0 : (Number(price) || 0);
 
-    const { data: category, error: catErr } = await supabase
-      .from("lms_course_categories")
-      .upsert({ name: title, slug: courseSlug }, { onConflict: "slug" })
-      .select("id").single();
-    if (catErr) { setMessage({ type: "error", text: catErr.message }); setLoading(false); return; }
+    let categoryId: string | null = null;
+    try {
+      const { data: category } = await supabase
+        .from("lms_course_categories")
+        .upsert({ name: title, slug: courseSlug }, { onConflict: "slug" })
+        .select("id").maybeSingle();
+      categoryId = category?.id ?? null;
+    } catch (e) {
+      // Category upsert optional fallback
+    }
 
-    const { data: course, error: courseErr } = await supabase
+    const basePayload: any = {
+      category_id: categoryId,
+      title,
+      slug: courseSlug,
+      description,
+      thumbnail_url: finalThumb,
+      youtube_url: youtubeUrl || null,
+      pdf_url: pdfUrl || null,
+      price_inr: finalPrice,
+      published,
+      sort_order: Number(sortOrder) || 1,
+    };
+
+    let course: any = null;
+    let courseErr: any = null;
+
+    // Try upsert with is_free first
+    const res = await supabase
       .from("lms_courses")
-      .upsert({
-        category_id: category.id, title, slug: courseSlug, description,
-        thumbnail_url: finalThumb, youtube_url: youtubeUrl,
-        pdf_url: pdfUrl || null, price_inr: Number(price) || 199, published: true,
-        sort_order: Number(sortOrder) || 999,
-      }, { onConflict: "slug" })
-      .select("id").single();
-    if (courseErr) { setMessage({ type: "error", text: courseErr.message }); setLoading(false); return; }
+      .upsert({ ...basePayload, is_free: isFree }, { onConflict: "slug" })
+      .select("id")
+      .single();
+
+    if (res.error && res.error.message.includes("is_free")) {
+      // Fallback if column does not exist
+      const fallbackRes = await supabase
+        .from("lms_courses")
+        .upsert(basePayload, { onConflict: "slug" })
+        .select("id")
+        .single();
+      course = fallbackRes.data;
+      courseErr = fallbackRes.error;
+    } else {
+      course = res.data;
+      courseErr = res.error;
+    }
+
+    if (courseErr || !course) {
+      setMessage({ type: "error", text: courseErr?.message || "Failed to create course." });
+      setLoading(false);
+      return;
+    }
 
     const { data: mod, error: modErr } = await supabase
       .from("lms_modules")
@@ -99,9 +142,15 @@ export function AddCourseModal() {
       .select("id").single();
     if (lesErr) { setMessage({ type: "error", text: lesErr.message }); setLoading(false); return; }
 
+    const videoPayload: any = {
+      lesson_id: lesson.id,
+      youtube_video_id: (youtubeUrl && videoId) ? videoId : "",
+      bunny_video_id: bunnyVideoId.trim() || null,
+    };
+
     const { error: vidErr } = await supabase
       .from("lms_videos")
-      .insert({ lesson_id: lesson.id, youtube_video_id: videoId });
+      .insert(videoPayload);
     if (vidErr) { setMessage({ type: "error", text: vidErr.message }); setLoading(false); return; }
 
     if (pdfUrl) {
@@ -111,9 +160,18 @@ export function AddCourseModal() {
       });
     }
 
+    // Trigger notification to all registered users if published
+    if (published) {
+      try {
+        await notifyAllUsersNewCourse(title, courseSlug);
+      } catch (err) {
+        console.error("Error creating new course notification:", err);
+      }
+    }
+
     setLoading(false);
-    setMessage({ type: "success", text: `"${title}" added! Refreshing…` });
-    setTimeout(() => { close(); window.location.reload(); }, 1500);
+    setMessage({ type: "success", text: `"${title}" added successfully! Refreshing…` });
+    setTimeout(() => { close(); window.location.reload(); }, 1200);
   }
 
   return (
@@ -128,9 +186,18 @@ export function AddCourseModal() {
       {open && (
         <CourseModal
           title="Add New Course"
-          subtitle="Fill in the details — it will appear in the course catalog immediately."
-          fields={{ title, youtubeUrl, pdfUrl, price, thumbnailUrl, description, sortOrder }}
-          setters={{ setTitle, setYoutubeUrl, setPdfUrl, setPrice, setThumbnailUrl, setDescription, setSortOrder }}
+          subtitle="Fill in the details — it will appear in the course catalog."
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, published, thumbnailUrl, description, sortOrder }}
+          setters={{
+            setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
+            setIsFree: (val: boolean) => {
+              setIsFree(val);
+              if (val) setPrice("0");
+              else if (price === "0") setPrice("199");
+            },
+            setPrice,
+            setPublished, setThumbnailUrl, setDescription, setSortOrder
+          }}
           loading={loading}
           message={message}
           submitLabel="Add Course"
@@ -148,8 +215,10 @@ type EditableCourse = {
   slug: string;
   title: string;
   youtubeUrl: string;
+  bunnyVideoId?: string;
   pdfUrl: string;
   price: number;
+  published: boolean;
   thumbnailUrl: string;
   description: string;
   sortOrder: number;
@@ -159,8 +228,11 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(course.title);
   const [youtubeUrl, setYoutubeUrl] = useState(course.youtubeUrl);
+  const [bunnyVideoId, setBunnyVideoId] = useState(course.bunnyVideoId ?? "");
   const [pdfUrl, setPdfUrl] = useState(course.pdfUrl);
+  const [isFree, setIsFree] = useState(course.price === 0);
   const [price, setPrice] = useState(String(course.price));
+  const [published, setPublished] = useState(course.published ?? true);
   const [thumbnailUrl, setThumbnailUrl] = useState(course.thumbnailUrl);
   const [description, setDescription] = useState(course.description);
   const [sortOrder, setSortOrder] = useState(String(course.sortOrder));
@@ -168,64 +240,104 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Sync state whenever course prop or open changes
+  useEffect(() => {
+    if (open) {
+      setTitle(course.title);
+      setYoutubeUrl(course.youtubeUrl);
+      setBunnyVideoId(course.bunnyVideoId ?? "");
+      setPdfUrl(course.pdfUrl);
+      setIsFree(course.price === 0);
+      setPrice(String(course.price));
+      setPublished(course.published ?? true);
+      setThumbnailUrl(course.thumbnailUrl);
+      setDescription(course.description ?? "");
+      setSortOrder(String(course.sortOrder ?? 1));
+      setMessage(null);
+    }
+  }, [open, course]);
+
   function close() { setOpen(false); setMessage(null); }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!title || !youtubeUrl) {
-      setMessage({ type: "error", text: "Course name and YouTube link are required." });
+    if (!title || (!youtubeUrl && !bunnyVideoId)) {
+      setMessage({ type: "error", text: "Course name and a video (YouTube link or Bunny Video ID) are required." });
       return;
     }
     setLoading(true); setMessage(null);
     const supabase = createClient();
-    const videoId = getYoutubeId(youtubeUrl);
-    const finalThumb = thumbnailUrl.trim() || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    const videoId = youtubeUrl ? getYoutubeId(youtubeUrl) : null;
+    const finalThumb = thumbnailUrl.trim() || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "");
+    const finalPrice = isFree ? 0 : (Number(price) || 0);
 
-    // Update course row
-    const { error: courseErr } = await supabase
+    const baseUpdate: any = {
+      title,
+      description,
+      thumbnail_url: finalThumb,
+      youtube_url: youtubeUrl || null,
+      pdf_url: pdfUrl || null,
+      price_inr: finalPrice,
+      published,
+      sort_order: Number(sortOrder) || 1,
+    };
+
+    // Update course row with fallback
+    let { error: courseErr } = await supabase
       .from("lms_courses")
-      .update({
-        title,
-        description,
-        thumbnail_url: finalThumb,
-        youtube_url: youtubeUrl,
-        pdf_url: pdfUrl || null,
-        price_inr: Number(price) || 199,
-        sort_order: Number(sortOrder) || 999,
-      })
+      .update({ ...baseUpdate, is_free: isFree })
       .eq("id", course.id);
+
+    if (courseErr && courseErr.message.includes("is_free")) {
+      const fallbackRes = await supabase
+        .from("lms_courses")
+        .update(baseUpdate)
+        .eq("id", course.id);
+      courseErr = fallbackRes.error;
+    }
 
     if (courseErr) { setMessage({ type: "error", text: courseErr.message }); setLoading(false); return; }
 
-    // Find existing lesson for this course
-    const { data: existingLessons } = await supabase
-      .from("lms_lessons")
-      .select("id, lms_modules!inner(course_id)")
-      .eq("lms_modules.course_id", course.id)
-      .limit(1);
+    // Find existing module & lesson for this course
+    const { data: existingModules } = await supabase
+      .from("lms_modules")
+      .select("id")
+      .eq("course_id", course.id);
 
-    let lessonId: string | null = existingLessons?.[0]?.id ?? null;
+    const moduleIds = (existingModules ?? []).map((m) => m.id);
+    let targetModuleId: string | null = moduleIds[0] ?? null;
+    let lessonId: string | null = null;
 
-    if (!lessonId) {
-      // No module/lesson exists yet (seed course) — create them now
+    if (moduleIds.length > 0) {
+      const { data: existingLessons } = await supabase
+        .from("lms_lessons")
+        .select("id")
+        .in("module_id", moduleIds)
+        .limit(1);
+      lessonId = existingLessons?.[0]?.id ?? null;
+    }
+
+    if (!targetModuleId) {
       const { data: newModule, error: modErr } = await supabase
         .from("lms_modules")
         .insert({ course_id: course.id, title: "Course Video", sort_order: 1 })
         .select("id").single();
 
       if (modErr) { setMessage({ type: "error", text: modErr.message }); setLoading(false); return; }
+      targetModuleId = newModule.id;
+    }
 
+    if (!lessonId && targetModuleId) {
       const { data: newLesson, error: lesErr } = await supabase
         .from("lms_lessons")
-        .insert({ module_id: newModule.id, title, slug: "main-video", description, sort_order: 1, published: true })
+        .insert({ module_id: targetModuleId, title, slug: "main-video", description, sort_order: 1, published: true })
         .select("id").single();
 
       if (lesErr) { setMessage({ type: "error", text: lesErr.message }); setLoading(false); return; }
-
       lessonId = newLesson.id;
     }
 
-    // Upsert video — update if exists, insert if not
+    // Upsert video
     if (lessonId) {
       const { data: existingVideo } = await supabase
         .from("lms_videos")
@@ -233,13 +345,18 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
         .eq("lesson_id", lessonId)
         .maybeSingle();
 
+      const videoPayload: any = {
+        youtube_video_id: videoId || "",
+        bunny_video_id: bunnyVideoId.trim() || null,
+      };
+
       if (existingVideo) {
         await supabase.from("lms_videos")
-          .update({ youtube_video_id: videoId })
+          .update(videoPayload)
           .eq("lesson_id", lessonId);
       } else {
         await supabase.from("lms_videos")
-          .insert({ lesson_id: lessonId, youtube_video_id: videoId });
+          .insert({ lesson_id: lessonId, ...videoPayload });
       }
     }
 
@@ -250,8 +367,8 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
     }
 
     setLoading(false);
-    setMessage({ type: "success", text: "Course updated! Refreshing…" });
-    setTimeout(() => { close(); onDone(); window.location.reload(); }, 1500);
+    setMessage({ type: "success", text: "Course updated successfully! Refreshing…" });
+    setTimeout(() => { close(); onDone(); window.location.reload(); }, 1200);
   }
 
   async function handleDelete() {
@@ -277,8 +394,17 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
         <CourseModal
           title="Edit Course"
           subtitle="Update the course details below. Changes apply immediately."
-          fields={{ title, youtubeUrl, pdfUrl, price, thumbnailUrl, description, sortOrder }}
-          setters={{ setTitle, setYoutubeUrl, setPdfUrl, setPrice, setThumbnailUrl, setDescription, setSortOrder }}
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, published, thumbnailUrl, description, sortOrder }}
+          setters={{
+            setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
+            setIsFree: (val: boolean) => {
+              setIsFree(val);
+              if (val) setPrice("0");
+              else if (price === "0") setPrice("199");
+            },
+            setPrice,
+            setPublished, setThumbnailUrl, setDescription, setSortOrder
+          }}
           loading={loading}
           message={message}
           submitLabel="Save Changes"
@@ -307,12 +433,19 @@ function CourseModal({
 }: {
   title: string;
   subtitle: string;
-  fields: { title: string; youtubeUrl: string; pdfUrl: string; price: string; thumbnailUrl: string; description: string; sortOrder: string };
+  fields: {
+    title: string; youtubeUrl: string; bunnyVideoId: string; pdfUrl: string;
+    isFree: boolean; price: string; published: boolean; thumbnailUrl: string;
+    description: string; sortOrder: string;
+  };
   setters: {
     setTitle: (v: string) => void;
     setYoutubeUrl: (v: string) => void;
+    setBunnyVideoId: (v: string) => void;
     setPdfUrl: (v: string) => void;
+    setIsFree: (v: boolean) => void;
     setPrice: (v: string) => void;
+    setPublished: (v: boolean) => void;
     setThumbnailUrl: (v: string) => void;
     setDescription: (v: string) => void;
     setSortOrder: (v: string) => void;
@@ -330,10 +463,14 @@ function CourseModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => e.stopPropagation()}
     >
-      <div className="w-full max-w-lg rounded-[2rem] bg-white shadow-2xl dark:bg-[#0e1f18] max-h-[95vh] flex flex-col">
+      <div
+        className="w-full max-w-lg rounded-[2rem] bg-white shadow-2xl dark:bg-[#0e1f18] max-h-[95vh] flex flex-col border border-forest/10 dark:border-white/10"
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-forest/10 px-6 py-5 dark:border-white/10 shrink-0">
           <div>
@@ -353,7 +490,7 @@ function CourseModal({
 
           {/* Thumbnail preview */}
           {previewThumb && (
-            <div className="rounded-2xl overflow-hidden border border-forest/10 dark:border-white/10 aspect-video">
+            <div className="rounded-2xl overflow-hidden border border-forest/10 dark:border-white/10 aspect-video bg-black/5">
               <img
                 src={previewThumb}
                 alt="Thumbnail preview"
@@ -373,13 +510,67 @@ function CourseModal({
             />
           </Field>
 
-          <Field label="YouTube Link *">
+          {/* Published vs Hidden Toggle */}
+          <div className="flex items-center justify-between rounded-2xl bg-linen p-4 dark:bg-white/5 border border-forest/10 dark:border-white/10">
+            <div>
+              <p className="text-xs font-bold text-forest dark:text-cream uppercase tracking-wide flex items-center gap-1.5">
+                {fields.published ? <Eye size={14} className="text-leaf" /> : <EyeOff size={14} className="text-amber-500" />}
+                Course Visibility
+              </p>
+              <p className="text-[11px] text-ink/55 dark:text-cream/55 mt-0.5">
+                {fields.published ? "Visible in public catalog for students" : "Hidden (Draft mode) — Only visible to admins"}
+              </p>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                checked={fields.published}
+                onChange={(e) => setters.setPublished(e.target.checked)}
+                className="peer sr-only"
+              />
+              <div className="peer h-6 w-11 rounded-full bg-slate-300 dark:bg-white/20 after:absolute after:top-0.5 after:left-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-leaf peer-checked:after:translate-x-full" />
+            </label>
+          </div>
+
+          {/* Free Course Checkbox */}
+          <div className="flex items-center justify-between rounded-2xl bg-linen p-4 dark:bg-white/5 border border-forest/10 dark:border-white/10">
+            <div>
+              <p className="text-xs font-bold text-forest dark:text-cream uppercase tracking-wide">
+                Free Course Option
+              </p>
+              <p className="text-[11px] text-ink/55 dark:text-cream/55 mt-0.5">
+                Check this if the course is 100% free for all students
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={fields.isFree}
+                onChange={(e) => setters.setIsFree(e.target.checked)}
+                className="size-4 rounded accent-leaf cursor-pointer"
+              />
+              <span className="text-xs font-black text-leaf uppercase">FREE</span>
+            </label>
+          </div>
+
+          <Field label="Bunny Stream Video ID (Recommended)" hint="Found in Bunny Stream dashboard under Video ID. Priority streaming.">
+            <div className={wrapCls}>
+              <span className="shrink-0 text-sm font-black text-amber-500">🐰</span>
+              <input
+                value={fields.bunnyVideoId}
+                onChange={(e) => setters.setBunnyVideoId(e.target.value)}
+                placeholder="e.g. 8f7d9a12-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                className={inputCls}
+              />
+            </div>
+          </Field>
+
+          <Field label="YouTube Link (Fallback / Alternative)">
             <div className={wrapCls}>
               <Youtube size={17} className="shrink-0 text-red-500" />
               <input
                 value={fields.youtubeUrl}
                 onChange={(e) => setters.setYoutubeUrl(e.target.value)}
-                required
                 placeholder="https://youtu.be/..."
                 className={inputCls}
               />
@@ -415,25 +606,27 @@ function CourseModal({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Price (₹)">
-              <div className={wrapCls}>
+              <div className={`${wrapCls} ${fields.isFree ? "opacity-50 pointer-events-none bg-black/5" : ""}`}>
                 <IndianRupee size={17} className="shrink-0 text-leaf" />
                 <input
-                  value={fields.price}
+                  value={fields.isFree ? "0" : fields.price}
                   onChange={(e) => setters.setPrice(e.target.value)}
+                  disabled={fields.isFree}
                   type="number" min="0"
+                  placeholder="199"
                   className={inputCls + " font-semibold"}
                 />
               </div>
             </Field>
 
-            <Field label="Position (Order)" hint="Lower = appears first. e.g. 1, 2, 3...">
+            <Field label="Position (Order)" hint="Lower = appears first (1, 2, 3...)">
               <div className={wrapCls}>
                 <span className="shrink-0 text-sm font-black text-leaf">#</span>
                 <input
                   value={fields.sortOrder}
                   onChange={(e) => setters.setSortOrder(e.target.value)}
                   type="number" min="1"
-                  placeholder="e.g. 1"
+                  placeholder="1"
                   className={inputCls + " font-semibold"}
                 />
               </div>

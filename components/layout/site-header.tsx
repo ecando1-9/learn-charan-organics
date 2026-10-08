@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, GraduationCap, Menu, Moon, Search, Sun, Users2, UserRound, X } from "lucide-react";
+import { BookOpen, GraduationCap, Menu, Moon, Search, ShieldCheck, Sun, Users2, UserRound, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { LogoutButton } from "@/components/logout-button";
 import { BrandLogo } from "@/components/brand-logo";
+import { NotificationsPopover } from "@/components/notifications-popover";
 
 const links = [
   { href: "/courses", label: "Courses" },
@@ -57,7 +58,7 @@ export function SiteHeader() {
             ))}
           </nav>
           {/* Desktop actions */}
-          <div className="hidden items-center gap-6 md:flex">
+          <div className="hidden items-center gap-5 md:flex">
             <div className="flex items-center gap-4 text-ink/60 dark:text-cream/60">
               <button aria-label="Search" className="hover:text-forest dark:hover:text-cream transition"><Search size={18} /></button>
               <button aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="hover:text-forest dark:hover:text-cream transition">
@@ -68,9 +69,11 @@ export function SiteHeader() {
             <div className="h-6 w-px bg-forest/10 dark:bg-white/10" />
 
             {userLabel ? (
-              <div className="flex items-center gap-4">
-                <Link href="/community" className="inline-flex items-center justify-center rounded-full bg-leaf text-white hover:bg-forest px-6 h-10 text-sm font-bold shadow-md transition-transform hover:scale-105">
-                  <Users2 size={18} className="mr-2" /> Groups Chat
+              <div className="flex items-center gap-3">
+                <NotificationsPopover />
+
+                <Link href="/community" className="inline-flex items-center justify-center rounded-full bg-leaf text-white hover:bg-forest px-5 h-10 text-xs font-bold shadow-md transition-transform hover:scale-105">
+                  <Users2 size={16} className="mr-1.5" /> Groups Chat
                 </Link>
 
                 <div className="relative group">
@@ -81,6 +84,10 @@ export function SiteHeader() {
                      <div className="px-3 py-2 border-b border-forest/10 dark:border-white/10 mb-1">
                         <p className="text-xs font-bold text-ink/50 dark:text-cream/50 truncate">{userLabel}</p>
                      </div>
+                     <Link href="/admin" className="rounded-xl px-3 py-2 text-sm font-bold text-emerald-600 hover:bg-forest/5 dark:text-emerald-400 dark:hover:bg-white/10 transition flex items-center justify-between">
+                       <span>Admin Panel</span>
+                       <ShieldCheck size={14} />
+                     </Link>
                      <Link href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Dashboard</Link>
                      <Link href="/dashboard/courses" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">My Learning</Link>
                      <Link href="/dashboard/settings" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Settings</Link>
@@ -101,14 +108,18 @@ export function SiteHeader() {
               </div>
             )}
           </div>
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="grid size-11 place-items-center rounded-full bg-forest/5 text-forest transition hover:bg-forest/10 dark:bg-white/10 dark:text-cream md:hidden"
-            aria-label="Open menu"
-          >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+
+          {/* Mobile actions */}
+          <div className="flex items-center gap-2 md:hidden">
+            {userLabel && <NotificationsPopover />}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="grid size-11 place-items-center rounded-full bg-forest/5 text-forest transition hover:bg-forest/10 dark:bg-white/10 dark:text-cream"
+              aria-label="Open menu"
+            >
+              {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
       </header>
 

@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { AdminConfigNotice } from "@/components/admin/admin-config-notice";
+import { createAdminClient, getAdminClientConfigError } from "@/lib/supabase/admin";
 import { StudentsClient } from "@/components/admin/students-client";
 
 export const dynamic = "force-dynamic";
@@ -14,45 +15,64 @@ type Profile = {
 };
 
 export default async function AdminStudentsPage() {
-  const supabase = await createClient();
+  const adminConfigError = getAdminClientConfigError();
+  if (adminConfigError) {
+    return <AdminConfigNotice message={adminConfigError} />;
+  }
 
-  // Only fetch users who have at least one LMS enrollment request OR enrollment
-  // This excludes ecommerce-only users accidentally added to lms_profiles
+  const admin = createAdminClient();
+
   const [requestUsersRes, enrollmentsRes] = await Promise.all([
-    supabase
+    admin
       .from("lms_enrollment_requests")
-      .select("user_id")
-      .order("requested_at", { ascending: false }),
-    supabase
+      .select("user_id"),
+    admin
       .from("lms_enrollments")
-      .select("user_id")
-      .eq("status", "active"),
+      .select("user_id, status"),
   ]);
 
-  // Build a unique set of user IDs who have LMS activity
-  const lmsUserIds = new Set<string>();
-  (requestUsersRes.data ?? []).forEach((r: { user_id: string }) => lmsUserIds.add(r.user_id));
-  (enrollmentsRes.data ?? []).forEach((e: { user_id: string }) => lmsUserIds.add(e.user_id));
+  const lmsUserIds = Array.from(
+    new Set([
+      ...(requestUsersRes.data ?? []).map((r: any) => r.user_id),
+      ...(enrollmentsRes.data ?? []).map((e: any) => e.user_id),
+    ].filter(Boolean))
+  );
+
+  const profilesRes = lmsUserIds.length > 0
+    ? await admin
+        .from("lms_profiles")
+        .select("id, full_name, email, role, suspended, created_at")
+        .eq("role", "student")
+        .in("id", lmsUserIds)
+        .order("created_at", { ascending: false })
+    : { data: [] };
+
+  const rawProfiles = profilesRes.data ?? [];
+  const rawEnrollments = enrollmentsRes.data ?? [];
 
   const enrollCountMap = new Map<string, number>();
-  (enrollmentsRes.data ?? []).forEach((e: { user_id: string }) => {
-    enrollCountMap.set(e.user_id, (enrollCountMap.get(e.user_id) ?? 0) + 1);
+  rawEnrollments.forEach((e: { user_id: string; status?: string }) => {
+    if (e.status === "active") {
+      enrollCountMap.set(e.user_id, (enrollCountMap.get(e.user_id) ?? 0) + 1);
+    }
   });
 
-  // Fetch profiles only for LMS users
-  let students: Profile[] = [];
-  if (lmsUserIds.size > 0) {
-    const { data: profiles } = await supabase
-      .from("lms_profiles")
-      .select("id,full_name,email,role,suspended,created_at")
-      .in("id", [...lmsUserIds])
-      .order("created_at", { ascending: false });
-
-    students = (profiles ?? []).map((p) => ({
+  const students: Profile[] = rawProfiles.map((p: any) => {
+    let name = p.full_name?.trim();
+    if (!name || name.toLowerCase() === "student") {
+      if (p.email && p.email.includes("@")) {
+        const handle = p.email.split("@")[0];
+        name = handle.charAt(0).toUpperCase() + handle.slice(1);
+      } else {
+        name = `Student ${p.id.slice(0, 4)}`;
+      }
+    }
+    return {
       ...p,
+      full_name: name,
       enrollment_count: enrollCountMap.get(p.id) ?? 0,
-    }));
-  }
+    };
+  });
 
   return (
     <div className="space-y-6">

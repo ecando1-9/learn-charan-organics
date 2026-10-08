@@ -20,7 +20,7 @@ export default async function CommunityLayout({
 
   return (
     <DashboardShell>
-      <div className="flex h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] overflow-hidden rounded-[2rem] bg-linen shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
+      <div className="flex h-[calc(100dvh-5.5rem)] lg:h-[calc(100vh-6rem)] overflow-hidden rounded-none sm:rounded-[2rem] bg-linen shadow-soft dark:bg-white/5 border-0 sm:border border-forest/10 dark:border-white/10 -mx-4 -my-6 sm:mx-0 sm:my-0">
          {/* Group Sidebar */}
          <GroupSidebar groups={groups} isAdmin={isAdmin} />
          

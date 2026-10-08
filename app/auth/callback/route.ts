@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
     await supabase.auth.exchangeCodeForSession(code);
     const { data } = await supabase.auth.getUser();
     if (data.user) {
-      await ensureLmsProfile(supabase, data.user);
+      // Uses admin/service-role client internally to bypass RLS
+      await ensureLmsProfile(data.user);
     }
   }
 

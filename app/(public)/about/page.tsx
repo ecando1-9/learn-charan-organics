@@ -1,5 +1,15 @@
-import { Section } from "@/components/ui/section";
+import type { Metadata } from "next";
+import { AboutAcademySection } from "@/components/home/about-academy-section";
+
+export const metadata: Metadata = {
+  title: "About Us | Charan Organics Academy",
+  description: "Learn about Charan Organics, our trademark registration under The Trademarks Act 1999, ayurvedic formulation heritage, values, and online manufacturing classes."
+};
 
 export default function AboutPage() {
-  return <Section><h1 className="text-4xl font-black text-forest dark:text-cream">About Academy</h1><p className="mt-4 max-w-3xl leading-7 text-ink/70 dark:text-cream/70">Charan Organics Academy helps makers learn natural product manufacturing with structured courses, practical PDFs, instructor support, progress tracking and certificates.</p></Section>;
+  return (
+    <div className="py-6">
+      <AboutAcademySection showFullDetails />
+    </div>
+  );
 }

@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getGroupMessages, getGroupMembers } from "@/app/actions/community";
-import { MessageBubble } from "@/components/community/message-bubble";
 import { MessageInput } from "@/components/community/message-input";
-import { MemberList } from "@/components/community/member-list";
+import { RealtimeMessages } from "@/components/community/realtime-messages";
+import { GroupHeaderInfo } from "@/components/community/group-header-info";
+import { Lock } from "lucide-react";
 
 interface Props {
   params: Promise<{ groupId: string }>;
@@ -13,12 +14,38 @@ export default async function GroupPage({ params }: Props) {
   const { groupId } = await params;
   const supabase = await createClient();
 
-  // Get group info
-  const { data: group } = await supabase
-    .from("lms_groups")
-    .select("*")
-    .eq("id", groupId)
-    .single();
+  // 1. Fetch group cleanly by ID, slug, or slugified group name
+  const isUuid = /^[0-9a-fA-F-]{36}$/.test(groupId);
+  let group: any = null;
+
+  if (isUuid) {
+    const { data } = await supabase
+      .from("lms_groups")
+      .select("*")
+      .eq("id", groupId)
+      .maybeSingle();
+    group = data;
+  }
+
+  if (!group) {
+    const { data: allGroups } = await supabase
+      .from("lms_groups")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const slugifiedId = groupId.toLowerCase();
+    group = (allGroups ?? []).find((g: any) => {
+      const gSlug = (g.slug || g.name || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return (
+        g.id === groupId ||
+        gSlug === slugifiedId ||
+        (slugifiedId.includes("announcement") && g.name.toLowerCase().includes("announcement"))
+      );
+    }) || allGroups?.[0];
+  }
 
   if (!group) notFound();
 
@@ -27,71 +54,51 @@ export default async function GroupPage({ params }: Props) {
     data: { user },
   } = await supabase.auth.getUser();
   const currentUserId = user?.id ?? "";
-  const { data: profile } = await supabase.from("lms_profiles").select("role").eq("id", currentUserId).single();
+  const { data: profile } = await supabase
+    .from("lms_profiles")
+    .select("role")
+    .eq("id", currentUserId)
+    .maybeSingle();
   const isAdmin = profile?.role === "admin";
 
   const [messages, members] = await Promise.all([
-    getGroupMessages(groupId),
-    getGroupMembers(groupId),
+    getGroupMessages(group.id),
+    getGroupMembers(group.id),
   ]);
 
+  const isMember = members.some((m: any) => m.user_id === currentUserId || m.profile?.id === currentUserId);
+  const isAdminOnlyMode = group.admin_only_messaging ?? false;
+  const canSend = isAdmin || (isMember && !isAdminOnlyMode);
+
   return (
-    <>
-      {/* Header */}
-      <div className="border-b border-forest/10 bg-white dark:bg-transparent px-4 py-3 sm:px-6 sm:py-4 dark:border-white/10 flex items-center justify-between shrink-0 shadow-sm z-10 relative">
-        <div className="flex items-center gap-3">
-          {/* Mobile Back Button (Handled by a standard link back to /community) */}
-          <a href="/community" className="lg:hidden text-leaf hover:bg-forest/5 p-2 -ml-2 rounded-full">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          </a>
-          <div>
-            <h1 className="text-lg sm:text-xl font-black text-forest dark:text-cream leading-tight">
-              {group.name}
-            </h1>
-            {group.description && (
-              <p className="text-xs sm:text-sm text-ink/60 dark:text-cream/60 truncate max-w-[200px] sm:max-w-md">
-                {group.description}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="text-xs font-bold text-leaf bg-leaf/10 px-3 py-1.5 rounded-full">
-          {members.length} members
-        </div>
-      </div>
+    <div className="flex h-full flex-col bg-[#efeae2] dark:bg-[#0b141a] relative overflow-hidden">
+      {/* WhatsApp Header Bar */}
+      <GroupHeaderInfo
+        group={group}
+        members={members}
+        isAdmin={isAdmin}
+        currentUserId={currentUserId}
+      />
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 px-4 py-6 sm:px-6 bg-[#f0f2f5] dark:bg-transparent relative">
-        {/* Subtle WhatsApp-style background pattern could go here */}
-        {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="bg-white/80 dark:bg-white/5 backdrop-blur px-4 py-2 rounded-full shadow-sm text-sm text-ink/60 dark:text-cream/60 font-medium">
-              No messages yet.
-            </div>
-          </div>
-        ) : (
-          messages.map((msg: any) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isOwn={msg.user_id === currentUserId}
-            />
-          ))
-        )}
-      </div>
+      {/* Messages Feed */}
+      <RealtimeMessages
+        groupId={group.id}
+        initialMessages={messages}
+        currentUserId={currentUserId}
+      />
 
-      {/* Message Input */}
-      <div className="shrink-0 bg-[#f0f2f5] dark:bg-transparent pt-2">
-        {isAdmin ? (
-          <MessageInput groupId={groupId} />
+      {/* WhatsApp Input Footer */}
+      <div className="shrink-0 bg-[#f0f2f5] dark:bg-[#111b21]">
+        {canSend ? (
+          <MessageInput groupId={group.id} />
         ) : (
-          <div className="border-t border-forest/10 bg-white p-4 text-center dark:border-white/10 dark:bg-[#0e1f18]">
-            <p className="text-sm font-medium text-ink/60 dark:text-cream/60">
-              Only admins can send messages in this group.
+          <div className="border-t border-gray-200 p-4 text-center dark:border-white/10 dark:bg-[#111b21]">
+            <p className="text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1.5">
+              <Lock size={15} /> Only admins can send messages in this group.
             </p>
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

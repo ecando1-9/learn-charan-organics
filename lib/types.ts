@@ -4,7 +4,7 @@ export type Lesson = {
   slug: string;
   title: string;
   duration: string;
-  preview?: boolean;
+  is_preview?: boolean;
   completed?: boolean;
   videoId: string;
   bunnyVideoId?: string;
@@ -18,6 +18,7 @@ export type Module = {
 };
 
 export type Course = {
+  id?: string;
   slug: string;
   title: string;
   category: string;
@@ -37,6 +38,8 @@ export type Course = {
   modules: Module[];
   featured?: boolean;
   trending?: boolean;
+  isEnrolled?: boolean;
+  createdAt?: string;
 };
 
 export type FreeClass = {
@@ -78,6 +81,9 @@ export type GroupMessage = {
   user_id: string;
   body: string;
   resource_link: string | null;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
   created_at: string;
   profile?: {
     full_name: string | null;

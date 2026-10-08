@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal, Sparkles, Youtube, X, BookOpen, CheckCircle2 } from "lucide-react";
 import { CourseCard } from "@/components/course/course-card";
 import type { Course } from "@/lib/types";
 
@@ -9,6 +9,7 @@ export function CourseFilters({ courses }: { courses: Course[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [level, setLevel] = useState("All");
+  const [typeFilter, setTypeFilter] = useState<"All" | "Premium" | "Free">("All");
 
   const categories = useMemo(
     () => Array.from(new Set(courses.map((c) => c.category))).sort(),
@@ -23,21 +24,70 @@ export function CourseFilters({ courses }: { courses: Course[] }) {
           course.category.toLowerCase().includes(query.toLowerCase());
         const matchesCategory = category === "All" || course.category === category;
         const matchesLevel = level === "All" || course.level === level;
-        return matchesQuery && matchesCategory && matchesLevel;
+
+        const isFree = course.price === 0;
+        const matchesType =
+          typeFilter === "All"
+            ? true
+            : typeFilter === "Free"
+            ? isFree
+            : !isFree;
+
+        return matchesQuery && matchesCategory && matchesLevel && matchesType;
       }),
-    [query, category, level, courses]
+    [query, category, level, typeFilter, courses]
   );
 
-  const hasFilters = query || category !== "All" || level !== "All";
+  const enrolledCourses = useMemo(() => filtered.filter((c) => c.isEnrolled), [filtered]);
+  const otherCourses = useMemo(() => filtered.filter((c) => !c.isEnrolled), [filtered]);
+
+  const hasFilters = query || category !== "All" || level !== "All" || typeFilter !== "All";
 
   function clearAll() {
     setQuery("");
     setCategory("All");
     setLevel("All");
+    setTypeFilter("All");
   }
 
   return (
     <div>
+      {/* ── Type Tabs (Premium vs Free) ── */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-white/80 dark:bg-white/[0.05] border border-forest/10 dark:border-white/10 w-fit backdrop-blur-xl">
+        <button
+          onClick={() => setTypeFilter("All")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            typeFilter === "All"
+              ? "bg-forest text-white shadow-sm"
+              : "text-ink/60 dark:text-cream/60 hover:text-ink dark:hover:text-cream"
+          }`}
+        >
+          All Courses ({courses.length})
+        </button>
+        <button
+          onClick={() => setTypeFilter("Premium")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            typeFilter === "Premium"
+              ? "bg-amber-500 text-white shadow-sm"
+              : "text-ink/60 dark:text-cream/60 hover:text-amber-500"
+          }`}
+        >
+          <Sparkles size={14} />
+          <span>Premium Courses</span>
+        </button>
+        <button
+          onClick={() => setTypeFilter("Free")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            typeFilter === "Free"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-ink/60 dark:text-cream/60 hover:text-emerald-500"
+          }`}
+        >
+          <Youtube size={14} />
+          <span>Free Classes</span>
+        </button>
+      </div>
+
       {/* ── Filter bar ── */}
       <div className="sticky top-[4.5rem] z-20">
         <div className="
@@ -182,12 +232,49 @@ export function CourseFilters({ courses }: { courses: Course[] }) {
         )}
       </div>
 
-      {/* ── Course grid ── */}
+      {/* ── Course grid sections ── */}
       {filtered.length ? (
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((course) => (
-            <CourseCard key={course.slug} course={course} />
-          ))}
+        <div className="mt-6 space-y-10">
+          {/* Section 1: My Purchased / Enrolled Courses (Shown FIRST) */}
+          {enrolledCourses.length > 0 && (
+            <div className="rounded-3xl bg-emerald-500/5 p-4 sm:p-6 border border-emerald-500/20 space-y-4 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-emerald-500/20 pb-3">
+                <div className="grid size-7 place-items-center rounded-full bg-emerald-700 text-white font-bold text-xs shrink-0 shadow-sm">
+                  <CheckCircle2 size={15} />
+                </div>
+                <h2 className="text-lg sm:text-xl font-black text-forest dark:text-cream flex items-center gap-2">
+                  My Enrolled Courses
+                  <span className="rounded-full bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 text-xs px-2.5 py-0.5 font-bold">
+                    {enrolledCourses.length}
+                  </span>
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
+                {enrolledCourses.map((course) => (
+                  <CourseCard key={course.slug} course={course} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Section 2: Other Available Courses */}
+          {otherCourses.length > 0 && (
+            <div className="space-y-4">
+              {enrolledCourses.length > 0 && (
+                <div className="flex items-center gap-2 border-b border-forest/10 dark:border-white/10 pb-3">
+                  <BookOpen className="text-leaf" size={18} />
+                  <h2 className="text-lg sm:text-xl font-black text-forest dark:text-cream">
+                    Explore Other Courses ({otherCourses.length})
+                  </h2>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
+                {otherCourses.map((course) => (
+                  <CourseCard key={course.slug} course={course} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-6 rounded-[2rem] bg-white p-10 text-center shadow-soft dark:bg-white/5">

@@ -34,11 +34,14 @@ export const viewport: Viewport = {
   initialScale: 1
 };
 
+import { TelemetryTracker } from "@/components/telemetry-tracker";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
+          <TelemetryTracker />
           {children}
           <Toaster />
         </ThemeProvider>

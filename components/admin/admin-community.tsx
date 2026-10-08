@@ -65,7 +65,12 @@ export function AdminCommunity() {
     e.preventDefault();
     setIsPending(true);
     try {
-      const { error } = await supabase.from("lms_groups").insert({ name: form.name, description: form.description || null });
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from("lms_groups").insert({
+        name: form.name,
+        description: form.description || null,
+        created_by: user?.id || null,
+      });
       if (error) {
         alert("Failed to create group: " + error.message);
         return;

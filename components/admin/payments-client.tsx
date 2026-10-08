@@ -15,6 +15,8 @@ type PaymentRecord = {
   id: string;
   status: string;
   course_title: string;
+  course_details: { name: string; amount_inr: number }[];
+  course_count: number;
   amount_inr: number;
   upi_id: string | null;
   utr_number: string | null;
@@ -222,8 +224,18 @@ export function PaymentsClient({
 
                   {/* Course */}
                   <div className="mt-4 rounded-2xl bg-linen dark:bg-white/5 p-3">
-                    <p className="text-xs font-bold text-ink/50 dark:text-cream/50 mb-0.5">Course</p>
-                    <p className="text-sm font-semibold text-forest dark:text-cream">{r.course_title}</p>
+                    <p className="text-xs font-bold text-ink/50 dark:text-cream/50 mb-0.5">Courses</p>
+                    <p className="text-sm font-black text-leaf">
+                      {r.course_count} course{r.course_count !== 1 ? "s" : ""}
+                    </p>
+                    <div className="mt-2 space-y-1 text-sm font-semibold text-forest dark:text-cream">
+                      {(r.course_details.length > 0 ? r.course_details : [{ name: r.course_title, amount_inr: r.amount_inr }]).map((course) => (
+                        <p key={course.name} className="flex justify-between gap-3">
+                          <span>{course.name}</span>
+                          <span className="font-black text-leaf">{formatINR(course.amount_inr)}</span>
+                        </p>
+                      ))}
+                    </div>
                   </div>
 
                   {/* UTR + UPI */}
