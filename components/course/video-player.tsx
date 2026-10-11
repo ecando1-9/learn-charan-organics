@@ -317,11 +317,21 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col backdrop-blur-2xl">
           <div className="flex justify-between items-center p-4 border-b border-white/10 text-white">
             <div className="font-bold flex items-center gap-2">
-              <Lock size={18} className="text-leaf" /> Protected Document Viewer
+              <Lock size={18} className="text-leaf" /> Protected Formulation Notes
             </div>
-            <button onClick={() => setShowNotes(false)} className="p-2 hover:bg-white/10 rounded-full transition">
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={`/api/courses/${course.slug}/pdf?download=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-3.5 py-1.5 text-xs font-bold text-white hover:bg-moss transition shadow-sm"
+              >
+                Download PDF
+              </a>
+              <button onClick={() => setShowNotes(false)} className="p-2 hover:bg-white/10 rounded-full transition" title="Close">
+                <X size={20} />
+              </button>
+            </div>
           </div>
           <div className="flex-1 w-full h-full bg-[#323639] relative">
              {/* 

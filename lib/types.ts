@@ -29,6 +29,7 @@ export type Course = {
   level: CourseLevel;
   language: string;
   price: number;
+  price1Year?: number;
   thumbnail: string;
   youtubeUrl?: string;
   pdfUrl?: string;

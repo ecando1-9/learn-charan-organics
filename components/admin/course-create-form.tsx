@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   CheckCircle2, Image as ImageIcon, IndianRupee,
-  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff
+  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff, FileText
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
@@ -49,6 +49,7 @@ export function AddCourseModal() {
   const [pdfUrl, setPdfUrl] = useState("");
   const [isFree, setIsFree] = useState(false);
   const [price, setPrice] = useState("199");
+  const [price1Year, setPrice1Year] = useState("");
   const [published, setPublished] = useState(true);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [description, setDescription] = useState("");
@@ -58,7 +59,7 @@ export function AddCourseModal() {
 
   function reset() {
     setTitle(""); setYoutubeUrl(""); setBunnyVideoId(""); setPdfUrl("");
-    setIsFree(false); setPrice("199"); setPublished(true);
+    setIsFree(false); setPrice("199"); setPrice1Year(""); setPublished(true);
     setThumbnailUrl(""); setDescription(""); setSortOrder("1"); setMessage(null);
   }
   function close() { setOpen(false); reset(); }
@@ -75,6 +76,7 @@ export function AddCourseModal() {
     const videoId = youtubeUrl ? getYoutubeId(youtubeUrl) : "dummy";
     const finalThumb = thumbnailUrl.trim() || (youtubeUrl ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "");
     const finalPrice = isFree ? 0 : (Number(price) || 0);
+    const final1YearPrice = isFree ? 0 : (price1Year ? Number(price1Year) : null);
 
     let categoryId: string | null = null;
     try {
@@ -96,6 +98,7 @@ export function AddCourseModal() {
       youtube_url: youtubeUrl || null,
       pdf_url: pdfUrl || null,
       price_inr: finalPrice,
+      price_1year_inr: final1YearPrice,
       published,
       sort_order: Number(sortOrder) || 1,
     };
@@ -103,15 +106,24 @@ export function AddCourseModal() {
     let course: any = null;
     let courseErr: any = null;
 
-    // Try upsert with is_free first
-    const res = await supabase
+    // Try upsert with is_free and price_1year_inr first
+    let res = await supabase
       .from("lms_courses")
       .upsert({ ...basePayload, is_free: isFree }, { onConflict: "slug" })
       .select("id")
       .single();
 
+    if (res.error && res.error.message.includes("price_1year_inr")) {
+      delete basePayload.price_1year_inr;
+      res = await supabase
+        .from("lms_courses")
+        .upsert({ ...basePayload, is_free: isFree }, { onConflict: "slug" })
+        .select("id")
+        .single();
+    }
+
     if (res.error && res.error.message.includes("is_free")) {
-      // Fallback if column does not exist
+      delete basePayload.is_free;
       const fallbackRes = await supabase
         .from("lms_courses")
         .upsert(basePayload, { onConflict: "slug" })
@@ -187,15 +199,15 @@ export function AddCourseModal() {
         <CourseModal
           title="Add New Course"
           subtitle="Fill in the details — it will appear in the course catalog."
-          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, published, thumbnailUrl, description, sortOrder }}
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, published, thumbnailUrl, description, sortOrder }}
           setters={{
             setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
             setIsFree: (val: boolean) => {
               setIsFree(val);
-              if (val) setPrice("0");
+              if (val) { setPrice("0"); setPrice1Year(""); }
               else if (price === "0") setPrice("199");
             },
-            setPrice,
+            setPrice, setPrice1Year,
             setPublished, setThumbnailUrl, setDescription, setSortOrder
           }}
           loading={loading}
@@ -218,6 +230,7 @@ type EditableCourse = {
   bunnyVideoId?: string;
   pdfUrl: string;
   price: number;
+  price1Year?: number;
   published: boolean;
   thumbnailUrl: string;
   description: string;
@@ -232,6 +245,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
   const [pdfUrl, setPdfUrl] = useState(course.pdfUrl);
   const [isFree, setIsFree] = useState(course.price === 0);
   const [price, setPrice] = useState(String(course.price));
+  const [price1Year, setPrice1Year] = useState(course.price1Year ? String(course.price1Year) : "");
   const [published, setPublished] = useState(course.published ?? true);
   const [thumbnailUrl, setThumbnailUrl] = useState(course.thumbnailUrl);
   const [description, setDescription] = useState(course.description);
@@ -249,6 +263,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       setPdfUrl(course.pdfUrl);
       setIsFree(course.price === 0);
       setPrice(String(course.price));
+      setPrice1Year(course.price1Year ? String(course.price1Year) : "");
       setPublished(course.published ?? true);
       setThumbnailUrl(course.thumbnailUrl);
       setDescription(course.description ?? "");
@@ -270,6 +285,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
     const videoId = youtubeUrl ? getYoutubeId(youtubeUrl) : null;
     const finalThumb = thumbnailUrl.trim() || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "");
     const finalPrice = isFree ? 0 : (Number(price) || 0);
+    const final1YearPrice = isFree ? 0 : (price1Year ? Number(price1Year) : null);
 
     const baseUpdate: any = {
       title,
@@ -278,6 +294,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       youtube_url: youtubeUrl || null,
       pdf_url: pdfUrl || null,
       price_inr: finalPrice,
+      price_1year_inr: final1YearPrice,
       published,
       sort_order: Number(sortOrder) || 1,
     };
@@ -288,7 +305,17 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       .update({ ...baseUpdate, is_free: isFree })
       .eq("id", course.id);
 
+    if (courseErr && courseErr.message.includes("price_1year_inr")) {
+      delete baseUpdate.price_1year_inr;
+      const res = await supabase
+        .from("lms_courses")
+        .update({ ...baseUpdate, is_free: isFree })
+        .eq("id", course.id);
+      courseErr = res.error;
+    }
+
     if (courseErr && courseErr.message.includes("is_free")) {
+      delete baseUpdate.is_free;
       const fallbackRes = await supabase
         .from("lms_courses")
         .update(baseUpdate)
@@ -394,15 +421,15 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
         <CourseModal
           title="Edit Course"
           subtitle="Update the course details below. Changes apply immediately."
-          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, published, thumbnailUrl, description, sortOrder }}
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, published, thumbnailUrl, description, sortOrder }}
           setters={{
             setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
             setIsFree: (val: boolean) => {
               setIsFree(val);
-              if (val) setPrice("0");
+              if (val) { setPrice("0"); setPrice1Year(""); }
               else if (price === "0") setPrice("199");
             },
-            setPrice,
+            setPrice, setPrice1Year,
             setPublished, setThumbnailUrl, setDescription, setSortOrder
           }}
           loading={loading}
@@ -435,7 +462,7 @@ function CourseModal({
   subtitle: string;
   fields: {
     title: string; youtubeUrl: string; bunnyVideoId: string; pdfUrl: string;
-    isFree: boolean; price: string; published: boolean; thumbnailUrl: string;
+    isFree: boolean; price: string; price1Year: string; published: boolean; thumbnailUrl: string;
     description: string; sortOrder: string;
   };
   setters: {
@@ -445,6 +472,7 @@ function CourseModal({
     setPdfUrl: (v: string) => void;
     setIsFree: (v: boolean) => void;
     setPrice: (v: string) => void;
+    setPrice1Year: (v: string) => void;
     setPublished: (v: boolean) => void;
     setThumbnailUrl: (v: string) => void;
     setDescription: (v: string) => void;
@@ -457,6 +485,34 @@ function CourseModal({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   extraFooter?: React.ReactNode;
 }) {
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setUploadError("Please select a valid PDF document.");
+      return;
+    }
+    setUploadingPdf(true);
+    setUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/community/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to upload PDF");
+      }
+      setters.setPdfUrl(data.url);
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to upload PDF file");
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
   const videoId = fields.youtubeUrl ? getYoutubeId(fields.youtubeUrl) : null;
   const previewThumb = fields.thumbnailUrl.trim()
     || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null);
@@ -592,20 +648,58 @@ function CourseModal({
             </div>
           </Field>
 
-          <Field label="PDF Notes Link (optional)">
-            <div className={wrapCls}>
-              <Upload size={17} className="shrink-0 text-leaf" />
-              <input
-                value={fields.pdfUrl}
-                onChange={(e) => setters.setPdfUrl(e.target.value)}
-                placeholder="https://drive.google.com/..."
-                className={inputCls}
-              />
+          {/* PDF Notes Upload & URL */}
+          <Field
+            label="Formulation Notes / PDF Book (optional)"
+            hint="Upload your course PDF or paste a link. Only enrolled students can download."
+          >
+            <div className="space-y-2">
+              <div className={wrapCls}>
+                <FileText size={17} className="shrink-0 text-leaf" />
+                <input
+                  value={fields.pdfUrl}
+                  onChange={(e) => setters.setPdfUrl(e.target.value)}
+                  placeholder="https://... or click Upload PDF below"
+                  className={inputCls}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <input
+                  type="file"
+                  id="pdf-upload-input"
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                  onChange={handlePdfUpload}
+                  disabled={uploadingPdf}
+                />
+                <label
+                  htmlFor="pdf-upload-input"
+                  className={`inline-flex items-center gap-1.5 rounded-xl border border-forest/15 dark:border-white/15 px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                    uploadingPdf
+                      ? "bg-forest/10 text-forest cursor-wait"
+                      : "bg-white dark:bg-white/10 text-forest dark:text-cream hover:bg-forest/5"
+                  }`}
+                >
+                  {uploadingPdf ? <Loader2 size={13} className="animate-spin text-leaf" /> : <Upload size={13} className="text-leaf" />}
+                  {uploadingPdf ? "Uploading PDF..." : "Upload PDF File"}
+                </label>
+
+                {fields.pdfUrl && (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-leaf truncate max-w-[220px]">
+                    <CheckCircle2 size={13} className="shrink-0" /> PDF Linked
+                  </span>
+                )}
+              </div>
+              {uploadError && (
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400">{uploadError}</p>
+              )}
             </div>
           </Field>
 
+          {/* Pricing & Duration Tiers */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Price (₹)">
+            <Field label="6 Months Access Price (₹) *" hint="Default student enrollment duration">
               <div className={`${wrapCls} ${fields.isFree ? "opacity-50 pointer-events-none bg-black/5" : ""}`}>
                 <IndianRupee size={17} className="shrink-0 text-leaf" />
                 <input
@@ -619,19 +713,33 @@ function CourseModal({
               </div>
             </Field>
 
-            <Field label="Position (Order)" hint="Lower = appears first (1, 2, 3...)">
-              <div className={wrapCls}>
-                <span className="shrink-0 text-sm font-black text-leaf">#</span>
+            <Field label="1 Year Access Price (₹)" hint="Optional extended access tier">
+              <div className={`${wrapCls} ${fields.isFree ? "opacity-50 pointer-events-none bg-black/5" : ""}`}>
+                <IndianRupee size={17} className="shrink-0 text-leaf" />
                 <input
-                  value={fields.sortOrder}
-                  onChange={(e) => setters.setSortOrder(e.target.value)}
-                  type="number" min="1"
-                  placeholder="1"
+                  value={fields.isFree ? "0" : fields.price1Year}
+                  onChange={(e) => setters.setPrice1Year(e.target.value)}
+                  disabled={fields.isFree}
+                  type="number" min="0"
+                  placeholder="e.g. 299"
                   className={inputCls + " font-semibold"}
                 />
               </div>
             </Field>
           </div>
+
+          <Field label="Position (Order)" hint="Lower = appears first (1, 2, 3...)">
+            <div className={wrapCls}>
+              <span className="shrink-0 text-sm font-black text-leaf">#</span>
+              <input
+                value={fields.sortOrder}
+                onChange={(e) => setters.setSortOrder(e.target.value)}
+                type="number" min="1"
+                placeholder="1"
+                className={inputCls + " font-semibold"}
+              />
+            </div>
+          </Field>
 
           <Field label="Description">
             <textarea

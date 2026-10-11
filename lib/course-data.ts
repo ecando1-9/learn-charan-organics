@@ -12,6 +12,7 @@ type DbCourse = {
   youtube_url: string | null;
   pdf_url: string | null;
   price_inr: number;
+  price_1year_inr?: number | null;
   is_free: boolean;
   level: "beginner" | "intermediate" | "advanced";
   language: string;
@@ -83,6 +84,7 @@ function buildCourse(course: DbCourse, categoryName: string, modules: Module[] =
     level: toLevel(course.level),
     language: course.language,
     price: (course.is_free === true || Number(course.price_inr ?? 0) === 0) ? 0 : course.price_inr,
+    price1Year: course.price_1year_inr ? Number(course.price_1year_inr) : undefined,
     thumbnail: course.thumbnail_url || defaultThumbnail(course),
     youtubeUrl: course.youtube_url || undefined,
     pdfUrl: course.pdf_url || undefined,

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  CheckCircle2, Clock, Globe2, Lock, PlayCircle, Sparkles, FileText, Award,
+  CheckCircle2, Clock, Globe2, Lock, PlayCircle, Sparkles, FileText, Award, Download,
 } from "lucide-react";
 import { getCourseBySlug } from "@/lib/course-data";
 import { formatCurrency } from "@/lib/utils";
@@ -36,8 +36,16 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
 
   let isEnrolled = false;
   let hasPendingRequest = false;
+  let isAdmin = false;
 
   if (user && dbCourse) {
+    const { data: profile } = await supabase
+      .from("lms_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    isAdmin = profile?.role === "admin";
+
     const { data: enroll } = await supabase
       .from("lms_enrollments")
       .select("id")
@@ -64,6 +72,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
     }
   }
 
+  const hasAccess = isEnrolled || isFree || isAdmin;
   const hasPdf = !!course.pdfUrl;
 
   return (
@@ -241,6 +250,60 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                       <CheckCircle2 className="shrink-0 text-leaf mt-0.5" size={17} /> {outcome}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Formulation Notes & PDF Handbook Section */}
+            {hasPdf && (
+              <div className="rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-leaf/10 text-leaf">
+                      <FileText size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-black text-forest dark:text-cream">
+                          Formulation Guide & PDF Handbook
+                        </h2>
+                        {hasAccess ? (
+                          <span className="rounded-full bg-leaf/15 px-2.5 py-0.5 text-[10px] font-black text-leaf">
+                            Unlocked ✅
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-black text-amber-600 dark:text-amber-400">
+                            🔒 Enrolled Only
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-ink/65 dark:text-cream/65 leading-relaxed">
+                        {hasAccess
+                          ? "Official batch measurements, formulation percentages, raw material handling, and quality control steps."
+                          : "Contains exact formulation recipes, percentages, measurements, and supplier guidelines. Access is strictly reserved for enrolled students."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 sm:self-center">
+                    {hasAccess ? (
+                      <a
+                        href={`/api/courses/${course.slug}/pdf?download=true`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-2.5 text-xs font-bold text-white shadow-soft hover:bg-leaf transition"
+                      >
+                        <Download size={14} /> Download PDF Notes
+                      </a>
+                    ) : (
+                      <Link
+                        href={`/enroll?course=${course.slug}`}
+                        className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-2.5 text-xs font-bold text-white shadow-soft hover:bg-leaf transition"
+                      >
+                        <Lock size={13} /> Enroll to Unlock PDF
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

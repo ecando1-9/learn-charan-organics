@@ -456,6 +456,7 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
             bunnyVideoId: editingCourse.bunny_video_id ?? "",
             pdfUrl: editingCourse.pdf_url ?? "",
             price: editingCourse.price_inr,
+            price1Year: editingCourse.price_1year_inr ? Number(editingCourse.price_1year_inr) : undefined,
             published: editingCourse.published ?? true,
             thumbnailUrl: editingCourse.thumbnail_url ?? "",
             description: editingCourse.description ?? "",

@@ -75,6 +75,8 @@ export async function submitEnrollmentRequest(formData: FormData) {
   }
 }
 
+import { sendEnrollmentApprovalEmail } from "@/lib/email";
+
 export async function approveEnrollment(requestId: string) {
   const adminResult = await requireAdminClient();
   if ("error" in adminResult) return { error: adminResult.error };
@@ -83,7 +85,7 @@ export async function approveEnrollment(requestId: string) {
   // Get the request details
   const { data: request, error: reqError } = await admin
     .from("lms_enrollment_requests")
-    .select("user_id, course_ids, amount_inr, selected_all")
+    .select("user_id, course_ids, amount_inr, selected_all, utr_number")
     .eq("id", requestId)
     .single();
 
@@ -101,13 +103,15 @@ export async function approveEnrollment(requestId: string) {
   }
 
   const coursePrices = new Map<string, number>();
+  let fetchedCourses: any[] = [];
   if (courseIds.length > 0) {
     const { data: courses } = await admin
       .from("lms_courses")
-      .select("id, price_inr")
+      .select("id, title, slug, price_inr")
       .in("id", courseIds);
 
-    (courses ?? []).forEach((course: any) => {
+    fetchedCourses = courses ?? [];
+    fetchedCourses.forEach((course: any) => {
       coursePrices.set(course.id, Number(course.price_inr) || 0);
     });
   }
@@ -142,8 +146,36 @@ export async function approveEnrollment(requestId: string) {
 
   if (updateError) return { error: updateError.message };
 
+  // Fetch student profile for email
+  const { data: profile } = await admin
+    .from("lms_profiles")
+    .select("full_name, email")
+    .eq("id", request.user_id)
+    .maybeSingle();
+
+  if (profile?.email) {
+    sendEnrollmentApprovalEmail({
+      studentEmail: profile.email,
+      studentName: profile.full_name || profile.email.split("@")[0],
+      courses: fetchedCourses.map((c: any) => ({
+        id: c.id,
+        title: c.title,
+        price: Number(c.price_inr) || 0,
+        slug: c.slug,
+      })),
+      totalAmount: Number(request.amount_inr) || 0,
+      utrNumber: request.utr_number,
+    }).catch((err) => {
+      console.error("[Email Notification] Could not send approval email:", err);
+    });
+  }
+
   revalidatePath("/admin/enrollments");
+  revalidatePath("/admin/payments");
   revalidatePath("/admin/students");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/courses");
+  revalidatePath("/dashboard/certificates");
   return { success: true };
 }
 
@@ -151,6 +183,25 @@ export async function rejectEnrollment(requestId: string, note?: string) {
   const adminResult = await requireAdminClient();
   if ("error" in adminResult) return { error: adminResult.error };
   const { admin } = adminResult;
+
+  // Check request before rejecting to see if it was previously approved
+  const { data: request } = await admin
+    .from("lms_enrollment_requests")
+    .select("user_id, course_ids, status")
+    .eq("id", requestId)
+    .single();
+
+  // If this request was already approved, revoke access from lms_enrollments!
+  if (request && request.status === "approved" && request.user_id) {
+    let courseIds: string[] = request.course_ids ?? [];
+    if (courseIds.length > 0) {
+      await admin
+        .from("lms_enrollments")
+        .delete()
+        .eq("user_id", request.user_id)
+        .in("course_id", courseIds);
+    }
+  }
 
   const { error } = await admin
     .from("lms_enrollment_requests")
@@ -163,6 +214,11 @@ export async function rejectEnrollment(requestId: string, note?: string) {
 
   if (error) return { error: error.message };
   revalidatePath("/admin/enrollments");
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/students");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/courses");
+  revalidatePath("/dashboard/certificates");
   return { success: true };
 }
 

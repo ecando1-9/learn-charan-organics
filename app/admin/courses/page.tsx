@@ -13,6 +13,7 @@ export type AdminCourse = {
   youtube_url: string | null;
   pdf_url: string | null;
   price_inr: number;
+  price_1year_inr?: number | null;
   published: boolean;
   created_at: string;
   sort_order: number;
@@ -24,7 +25,7 @@ export default async function AdminCoursesPage() {
   const { data } = await supabase
     .from("lms_courses")
     .select(`
-      id,slug,title,description,thumbnail_url,youtube_url,pdf_url,price_inr,published,created_at,sort_order,
+      *,
       lms_modules (
         lms_lessons (
           lms_videos (
