@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Award, BookOpen, CheckCircle2, GraduationCap, ShieldCheck, Sparkles, Users } from "lucide-react";
+import {
+  ArrowRight, Award, BookOpen, CheckCircle2, Clock, Download,
+  FileText, GraduationCap, PlayCircle, ShieldCheck, Sparkles, Users
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
 import { testimonials } from "@/lib/data";
@@ -17,7 +20,11 @@ export default async function HomePage() {
   ]);
 
   const enrolledIdSet = new Set(enrolledIds);
-  const myCourses = courses.filter((c) => c.id && enrolledIdSet.has(c.id));
+  const coursesWithStatus = courses.map((c) => ({
+    ...c,
+    isEnrolled: Boolean(c.id && enrolledIdSet.has(c.id)),
+  }));
+  const myCourses = coursesWithStatus.filter((c) => c.id && enrolledIdSet.has(c.id));
 
   return (
     <>
@@ -42,31 +49,119 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 2.5 Quick Enrolled Student Strip */}
+      {/* 2.5 Dedicated "My Enrolled Courses" Section for Logged-In Students */}
       {myCourses.length > 0 && (
-        <section className="border-b border-forest/10 bg-emerald-500/10 dark:border-emerald-500/20 dark:bg-emerald-500/5 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-            <div className="flex items-center gap-3">
-              <div className="grid size-9 place-items-center rounded-full bg-emerald-600 text-white shrink-0">
-                <BookOpen size={18} />
+        <section className="bg-gradient-to-b from-emerald-500/10 via-emerald-500/5 to-transparent py-10 sm:py-14 border-b border-forest/10 dark:border-white/10">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Your Learning Dashboard</span>
+                </div>
+                <h2 className="mt-1 text-2xl sm:text-4xl font-black text-forest dark:text-cream flex items-center gap-2.5">
+                  <GraduationCap className="text-leaf size-7 sm:size-9 shrink-0" />
+                  <span>My Enrolled Courses</span>
+                  <span className="rounded-full bg-emerald-600 text-white text-xs sm:text-sm font-black px-3 py-1 shadow-sm">
+                    {myCourses.length} {myCourses.length === 1 ? "Course" : "Courses"}
+                  </span>
+                </h2>
+                <p className="mt-1 text-xs sm:text-sm text-ink/65 dark:text-cream/65">
+                  Pick up right where you left off. Watch protected video lessons and download formulation notes.
+                </p>
               </div>
-              <p className="text-xs sm:text-sm font-black text-forest dark:text-cream">
-                Welcome back! You have <span className="text-emerald-700 dark:text-emerald-400 font-black">{myCourses.length} active enrolled {myCourses.length === 1 ? "course" : "courses"}</span>.
-              </p>
+
+              <div className="flex items-center gap-2.5">
+                <Link
+                  href="/dashboard/courses"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-forest px-5 py-2.5 text-xs font-bold text-white hover:bg-leaf transition shadow-soft dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                >
+                  <BookOpen size={14} /> Student Portal
+                </Link>
+                <Link
+                  href="/community"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-white/10 px-4 py-2.5 text-xs font-bold text-forest dark:text-cream border border-forest/15 dark:border-white/15 hover:bg-forest/5 transition"
+                >
+                  <Users size={14} /> Batch Chat
+                </Link>
+              </div>
             </div>
-            <Link
-              href="/dashboard/courses"
-              className="inline-flex items-center gap-1.5 rounded-full bg-forest px-4 py-1.5 text-xs font-bold text-white hover:bg-leaf transition shadow-sm dark:bg-emerald-600 dark:hover:bg-emerald-500"
-            >
-              <span>View All In Portal</span>
-              <ArrowRight size={13} />
-            </Link>
+
+            {/* Grid of Enrolled Courses */}
+            <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {myCourses.map((course) => (
+                <div
+                  key={course.id || course.slug}
+                  className="group relative flex flex-col overflow-hidden rounded-[2rem] border-2 border-emerald-500/40 bg-white p-4 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-glass dark:border-emerald-500/30 dark:bg-[#0e1f18]"
+                >
+                  {/* Thumbnail */}
+                  <Link
+                    href={`/learn/${course.slug}/main-video`}
+                    className="relative aspect-video w-full overflow-hidden rounded-[1.4rem] bg-black/10 block"
+                  >
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                    <span className="absolute top-2.5 left-2.5 rounded-full bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 shadow-md flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Unlocked & Active
+                    </span>
+                    <span className="absolute top-2.5 right-2.5 rounded-full bg-black/60 backdrop-blur text-white text-[10px] font-bold px-2 py-0.5">
+                      {course.category}
+                    </span>
+                  </Link>
+
+                  {/* Body */}
+                  <div className="mt-3.5 flex flex-1 flex-col justify-between space-y-3">
+                    <div>
+                      <Link href={`/learn/${course.slug}/main-video`}>
+                        <h3 className="line-clamp-2 text-base font-black text-forest dark:text-cream leading-tight hover:text-leaf transition">
+                          {course.title}
+                        </h3>
+                      </Link>
+                      <div className="mt-2 flex items-center gap-3 text-xs font-semibold text-ink/60 dark:text-cream/60">
+                        <span className="flex items-center gap-1">
+                          <Clock size={13} className="text-leaf" /> {course.duration}
+                        </span>
+                        {course.pdfUrl && (
+                          <span className="flex items-center gap-1 text-leaf font-bold">
+                            <FileText size={13} /> Notes Ready
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="pt-2 border-t border-forest/10 dark:border-white/10 flex items-center gap-2">
+                      <Link
+                        href={`/learn/${course.slug}/main-video`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-forest px-4 py-2.5 text-xs font-black text-white hover:bg-leaf transition shadow-sm dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                      >
+                        <PlayCircle size={15} /> Continue Learning
+                      </Link>
+                      {course.pdfUrl && (
+                        <a
+                          href={`/api/courses/${course.slug}/pdf?download=true`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="grid size-9 place-items-center rounded-xl bg-forest/5 text-forest hover:bg-forest/10 transition dark:bg-white/10 dark:text-cream shrink-0"
+                          title="Download formulation PDF notes"
+                        >
+                          <Download size={14} />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
 
       {/* 3. Interactive Course Tabs: My Courses (if enrolled) | Recently Added | Featured | Trending */}
-      <HomeCourseTabs courses={courses} myCourses={myCourses} />
+      <HomeCourseTabs courses={coursesWithStatus} myCourses={myCourses} />
 
       {/* 4. Free Classes Strip */}
       <div id="free-classes">

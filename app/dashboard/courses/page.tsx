@@ -9,7 +9,12 @@ export default async function MyCoursesPage() {
 
   // Only show courses the current user is actually enrolled in
   const enrolledIdSet = new Set(enrolledIds);
-  const myCourses = allCourses.filter((course) => course.id && enrolledIdSet.has(course.id));
+  const myCourses = allCourses
+    .filter((course) => course.id && enrolledIdSet.has(course.id))
+    .map((course) => ({
+      ...course,
+      isEnrolled: true,
+    }));
 
   return (
     <div>

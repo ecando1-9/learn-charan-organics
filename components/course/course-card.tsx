@@ -12,9 +12,13 @@ export function CourseCard({ course }: { course: Course }) {
   const isFree = course.price === 0;
   const [imgSrc, setImgSrc] = useState(course.thumbnail || fallbackThumb);
 
+  const destinationUrl = course.isEnrolled
+    ? `/learn/${course.slug}/main-video`
+    : `/courses/${course.slug}`;
+
   return (
     <Link
-      href={`/courses/${course.slug}`}
+      href={destinationUrl}
       className={`group relative flex flex-col overflow-hidden rounded-2xl sm:rounded-[2rem] border transition-all duration-300 hover:-translate-y-1 hover:shadow-glass ${
         course.isEnrolled
           ? "border-emerald-500/40 bg-emerald-500/5 shadow-soft dark:border-emerald-500/30 dark:bg-emerald-950/20"
