@@ -42,6 +42,7 @@ export async function uploadToCloudinary(
       {
         folder: "charan_community_attachments",
         resource_type: resourceType,
+        access_mode: "public",
         filename_override: originalFileName,
         use_filename: true,
         unique_filename: true,

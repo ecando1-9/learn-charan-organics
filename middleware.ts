@@ -45,7 +45,11 @@ export async function middleware(request: NextRequest) {
   });
 
   if (authCode) {
-    await supabase.auth.exchangeCodeForSession(authCode);
+    try {
+      await supabase.auth.exchangeCodeForSession(authCode);
+    } catch {
+      // ignore exchange error
+    }
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = request.nextUrl.searchParams.get("next") ?? "/dashboard";
     redirectUrl.search = "";
@@ -53,24 +57,24 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    const { data } = await supabase.auth.getUser();
+    const user = await supabase.auth.getUser().then((res) => res.data?.user).catch(() => null);
 
-    if ((isPrivate || isAdmin) && !data?.user) {
+    if ((isPrivate || isAdmin) && !user) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.searchParams.set("redirectTo", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    if (isAdmin && data?.user) {
+    if (isAdmin && user) {
       try {
         const admin = createAdminClient();
-        await ensureLmsProfile(data.user);
+        await ensureLmsProfile(user);
 
         const { data: profile } = await admin
           .from("lms_profiles")
           .select("role")
-          .eq("id", data.user.id)
+          .eq("id", user.id)
           .maybeSingle();
 
         if (profile?.role !== "admin") {

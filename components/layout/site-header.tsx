@@ -58,9 +58,9 @@ export function SiteHeader() {
             ))}
           </nav>
           {/* Desktop actions */}
-          <div className="hidden items-center gap-5 md:flex">
+          <div className="hidden items-center gap-5 lg:flex">
             <div className="flex items-center gap-4 text-ink/60 dark:text-cream/60">
-              <button aria-label="Search" className="hover:text-forest dark:hover:text-cream transition"><Search size={18} /></button>
+              <Link href="/courses" aria-label="Search courses" className="hover:text-forest dark:hover:text-cream transition"><Search size={18} /></Link>
               <button aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="hover:text-forest dark:hover:text-cream transition">
                 {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               </button>
@@ -77,9 +77,9 @@ export function SiteHeader() {
                 </Link>
 
                 <div className="relative group">
-                  <button className="grid size-10 place-items-center rounded-full bg-forest text-cream shadow-md transition hover:scale-105 border-2 border-transparent group-hover:border-leaf/50">
+                  <Link href="/dashboard" className="grid size-10 place-items-center rounded-full bg-forest text-cream shadow-md transition hover:scale-105 border-2 border-transparent group-hover:border-leaf/50">
                     <UserRound size={18} />
-                  </button>
+                  </Link>
                   <div className="absolute right-0 top-full mt-2 hidden w-48 flex-col rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-forest/10 dark:bg-[#0e1f18] dark:ring-white/10 group-hover:flex">
                      <div className="px-3 py-2 border-b border-forest/10 dark:border-white/10 mb-1">
                         <p className="text-xs font-bold text-ink/50 dark:text-cream/50 truncate">{userLabel}</p>
@@ -90,6 +90,7 @@ export function SiteHeader() {
                      </Link>
                      <Link href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Dashboard</Link>
                      <Link href="/dashboard/courses" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">My Learning</Link>
+                     <Link href="/dashboard/certificates" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Certificates</Link>
                      <Link href="/dashboard/settings" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Settings</Link>
                      <div className="mt-1 pt-1 border-t border-forest/10 dark:border-white/10">
                        <LogoutButton compact />
@@ -110,7 +111,7 @@ export function SiteHeader() {
           </div>
 
           {/* Mobile actions */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-2 lg:hidden">
             {userLabel && <NotificationsPopover />}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -125,7 +126,7 @@ export function SiteHeader() {
 
       {/* Mobile menu drawer */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMenuOpen(false)}>
+        <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMenuOpen(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div
             className="absolute right-0 top-0 h-full w-72 bg-linen shadow-2xl dark:bg-[#0e1f18] flex flex-col"
@@ -176,6 +177,9 @@ export function SiteHeader() {
                   <Link href="/dashboard/courses" className="flex items-center gap-3 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream">
                     <BookOpen size={17} /> My Learning
                   </Link>
+                  <Link href="/dashboard/certificates" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
+                    <GraduationCap size={17} /> Certificates
+                  </Link>
                   <LogoutButton compact />
                 </>
               ) : (
@@ -189,24 +193,37 @@ export function SiteHeader() {
       )}
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-forest/10 bg-cream/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-forest/95">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-forest/10 bg-cream/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-[#07140f]/95 shadow-lg">
         {[
           { href: "/", label: "Home", icon: GraduationCap },
           { href: "/courses", label: "Courses", icon: Search },
+          { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
           { href: "/community", label: "Groups", icon: Users2 },
-          { href: "/dashboard", label: "Learn", icon: BookOpen },
           { href: userLabel ? "/dashboard/settings" : "/login", label: "Profile", icon: UserRound }
-        ].map((item) => (
-          <Link key={item.href} href={item.href} className={cn(
-            "flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-[10px] font-semibold transition",
-            pathname === item.href
-              ? "text-forest dark:text-leaf"
-              : "text-ink/50 dark:text-cream/50"
-          )}>
-            <item.icon size={18} />
-            {item.label}
-          </Link>
-        ))}
+        ].map((item) => {
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : item.href === "/dashboard/courses"
+              ? pathname === "/dashboard/courses" || pathname?.startsWith("/dashboard/courses")
+              : item.href === "/courses"
+              ? pathname === "/courses" || pathname?.startsWith("/courses/")
+              : item.href === "/dashboard/settings"
+              ? pathname === "/dashboard/settings"
+              : pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href + "/"));
+
+          return (
+            <Link key={item.href} href={item.href} className={cn(
+              "flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-[10px] font-semibold transition",
+              isActive
+                ? "text-leaf font-bold dark:text-emerald-400"
+                : "text-ink/60 hover:text-forest dark:text-cream/60 dark:hover:text-cream"
+            )}>
+              <item.icon size={19} className={isActive ? "stroke-[2.5]" : "stroke-[1.8]"} />
+              <span className="truncate max-w-[55px] text-center leading-none">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </>
   );

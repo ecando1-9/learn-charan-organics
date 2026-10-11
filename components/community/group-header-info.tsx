@@ -119,40 +119,55 @@ export function GroupHeaderInfo({ group, members, isAdmin, currentUserId }: Grou
   return (
     <>
       {/* Header Bar */}
-      <div className="border-b border-gray-200 dark:border-white/10 bg-[#e9edef] dark:bg-[#202c33] px-4 py-3 sm:px-6 flex items-center justify-between shrink-0 shadow-sm z-10 relative">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={openDrawer}>
+      <div className="border-b border-gray-200 dark:border-white/10 bg-[#e9edef] dark:bg-[#202c33] px-3 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between shrink-0 shadow-sm z-10 relative">
+        <div className="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" onClick={openDrawer}>
           <a
             href="/community"
-            className="lg:hidden text-emerald-600 dark:text-emerald-400 hover:bg-black/5 p-2 -ml-2 rounded-full"
+            className="lg:hidden text-emerald-600 dark:text-emerald-400 hover:bg-black/5 p-1.5 -ml-1 rounded-full shrink-0"
             onClick={(e) => e.stopPropagation()}
+            title="Back to chats"
           >
             <ArrowLeft size={20} />
           </a>
-          <div className="grid size-10 place-items-center rounded-full bg-emerald-700 text-white font-black text-xs shrink-0">
+          <div className="grid size-9 sm:size-10 place-items-center rounded-full bg-emerald-700 text-white font-black text-xs shrink-0 shadow-sm">
             {group.name.substring(0, 2).toUpperCase()}
           </div>
-          <div>
-            <h1 className="text-base sm:text-lg font-black text-gray-900 dark:text-cream leading-tight flex items-center gap-2">
-              {group.name}
+          <div className="min-w-0 max-w-[130px] xs:max-w-[170px] sm:max-w-xs md:max-w-md">
+            <h1 className="text-sm sm:text-base font-black text-gray-900 dark:text-cream leading-tight flex items-center gap-1.5 truncate">
+              <span className="truncate">{group.name}</span>
               {isAdminOnly && (
-                <span className="text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Lock size={10} /> Announcement
+                <span className="shrink-0 text-[9px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                  <Lock size={9} /> <span className="hidden sm:inline">Announcement</span>
                 </span>
               )}
             </h1>
-            <p className="text-xs text-gray-500 dark:text-cream/60 truncate max-w-[200px] sm:max-w-md">
+            <p className="text-[11px] text-gray-500 dark:text-cream/60 truncate mt-0.5">
               {members.length} members {group.description ? `• ${group.description}` : ""}
             </p>
           </div>
         </div>
 
-        {/* Action Badge */}
-        <button
-          onClick={openDrawer}
-          className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-600/10 hover:bg-emerald-600/20 px-3.5 py-1.5 rounded-full transition shadow-sm"
-        >
-          <Users2 size={15} /> Group Info
-        </button>
+        {/* Action Buttons: compact circular on mobile, labeled on desktop */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {isAdmin && (
+            <button
+              onClick={openDrawer}
+              className="grid size-9 place-items-center sm:flex sm:w-auto sm:items-center sm:gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white sm:px-3 sm:py-1.5 text-xs font-bold transition shadow-sm shrink-0"
+              title="Add LMS student to group"
+            >
+              <UserPlus size={15} />
+              <span className="hidden sm:inline">Add Member</span>
+            </button>
+          )}
+          <button
+            onClick={openDrawer}
+            className="grid size-9 place-items-center sm:flex sm:w-auto sm:items-center sm:gap-1.5 rounded-full bg-emerald-600/10 hover:bg-emerald-600/20 active:scale-95 text-emerald-700 dark:text-emerald-400 sm:px-3 sm:py-1.5 text-xs font-bold transition shadow-sm shrink-0"
+            title="Group Info & Settings"
+          >
+            <Users2 size={16} />
+            <span className="hidden sm:inline">Group Info</span>
+          </button>
+        </div>
       </div>
 
       {/* Group Info & Member Management Drawer */}
@@ -223,11 +238,11 @@ export function GroupHeaderInfo({ group, members, isAdmin, currentUserId }: Grou
               {isAdmin && (
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
                   <h5 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                    <UserPlus size={15} /> Add Member to Group
+                    <UserPlus size={15} /> Add LMS Student to Group
                   </h5>
 
                   {loadingStudents ? (
-                    <p className="text-xs text-gray-500">Loading students...</p>
+                    <p className="text-xs text-gray-500">Loading LMS students...</p>
                   ) : (
                     <div className="space-y-2">
                       <div className="relative">
@@ -239,7 +254,7 @@ export function GroupHeaderInfo({ group, members, isAdmin, currentUserId }: Grou
                           type="text"
                           value={studentSearch}
                           onChange={(e) => setStudentSearch(e.target.value)}
-                          placeholder="Search student by name or email..."
+                          placeholder="Search LMS student by name or email..."
                           className="w-full rounded-xl border border-gray-300 bg-white pl-9 pr-3 py-2 text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:border-white/10 dark:bg-[#202c33] dark:text-cream placeholder:text-gray-400 dark:placeholder:text-cream/40"
                         />
                       </div>
@@ -247,7 +262,7 @@ export function GroupHeaderInfo({ group, members, isAdmin, currentUserId }: Grou
                       <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-gray-200/50 dark:divide-white/5">
                         {nonMembers.length === 0 ? (
                           <p className="text-[11px] text-gray-400 dark:text-cream/40 py-2 text-center">
-                            {studentSearch ? "No matching students found." : "All students added to this group."}
+                            {studentSearch ? "No matching LMS students found." : "All LMS students added to this group."}
                           </p>
                         ) : (
                           nonMembers.map((s) => (

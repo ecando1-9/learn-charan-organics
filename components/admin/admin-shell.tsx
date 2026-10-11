@@ -175,7 +175,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Top 5 Core Items) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 gap-1 border-t border-forest/10 bg-white/95 px-2 py-2 backdrop-blur-xl xl:hidden dark:border-white/10 dark:bg-forest/95">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 gap-1 border-t border-forest/10 bg-white/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl xl:hidden dark:border-white/10 dark:bg-[#0c1f17]/95">
         {mainNav.slice(0, 5).map((item) => {
           const isActive = pathname === item.href;
           return (

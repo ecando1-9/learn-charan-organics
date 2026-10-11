@@ -4,7 +4,8 @@ import { getGroupMessages, getGroupMembers } from "@/app/actions/community";
 import { MessageInput } from "@/components/community/message-input";
 import { RealtimeMessages } from "@/components/community/realtime-messages";
 import { GroupHeaderInfo } from "@/components/community/group-header-info";
-import { Lock } from "lucide-react";
+import { Lock, ShieldCheck } from "lucide-react";
+import { checkUserIsAdmin } from "@/lib/supabase/profile";
 
 interface Props {
   params: Promise<{ groupId: string }>;
@@ -49,17 +50,12 @@ export default async function GroupPage({ params }: Props) {
 
   if (!group) notFound();
 
-  // Get current user and role
+  // Get current user and role reliably
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const currentUserId = user?.id ?? "";
-  const { data: profile } = await supabase
-    .from("lms_profiles")
-    .select("role")
-    .eq("id", currentUserId)
-    .maybeSingle();
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = user ? await checkUserIsAdmin(user.id, user.email) : false;
 
   const [messages, members] = await Promise.all([
     getGroupMessages(group.id),
@@ -79,6 +75,21 @@ export default async function GroupPage({ params }: Props) {
         isAdmin={isAdmin}
         currentUserId={currentUserId}
       />
+
+      {/* Admin Capability Banner — only visible to admins */}
+      {isAdmin && (
+        <div className="shrink-0 flex items-center justify-between gap-2 px-3 sm:px-4 py-1.5 bg-emerald-700/10 dark:bg-emerald-900/30 border-b border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold overflow-hidden">
+          <div className="flex items-center gap-1.5 min-w-0 truncate">
+            <ShieldCheck size={13} className="shrink-0" />
+            <span className="truncate">Admin: Send messages, add members &amp; share files</span>
+          </div>
+          {group.admin_only_messaging && (
+            <span className="shrink-0 flex items-center gap-1 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 text-[10px]">
+              <Lock size={10} /> <span className="hidden sm:inline">Announcement</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Messages Feed */}
       <RealtimeMessages

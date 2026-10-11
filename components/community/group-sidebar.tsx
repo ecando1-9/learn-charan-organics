@@ -17,6 +17,7 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [groupDesc, setGroupDesc] = useState("");
+  const [adminOnly, setAdminOnly] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +27,7 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
     setIsPending(true);
     setError(null);
 
-    const res = await createGroup(groupName, groupDesc);
+    const res = await createGroup(groupName, groupDesc, adminOnly);
     setIsPending(false);
 
     if (res.error) {
@@ -34,6 +35,7 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
     } else {
       setGroupName("");
       setGroupDesc("");
+      setAdminOnly(false);
       setShowCreateModal(false);
       if (res.group?.id) {
         router.push(`/community/${res.group.id}`);
@@ -63,9 +65,9 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
               <button
                 onClick={() => setShowCreateModal(true)}
                 title="Create New Group"
-                className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition shadow-sm"
+                className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition shadow-sm"
               >
-                <Plus size={16} /> New Group
+                <Plus size={15} /> New Group
               </button>
             )}
           </div>
@@ -87,7 +89,7 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
         </div>
 
         {/* Group List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-200/50 dark:divide-white/5">
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-200/50 dark:divide-white/5 relative">
           {filteredGroups.length === 0 ? (
             <div className="p-8 text-center text-gray-500 dark:text-cream/50 text-sm font-medium">
               {search ? "No matching groups found." : "No groups joined yet."}
@@ -126,6 +128,17 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
                 </Link>
               );
             })
+          )}
+
+          {/* Floating "+" button for admin — visible on larger screens to avoid mobile nav clash */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              title="Create New Group"
+              className="hidden sm:flex sticky bottom-4 right-4 ml-auto mr-4 items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-lg px-4 py-2.5 text-xs font-bold transition z-10"
+            >
+              <Plus size={16} /> Create Group
+            </button>
           )}
         </div>
       </div>
@@ -177,6 +190,19 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
                   onChange={(e) => setGroupDesc(e.target.value)}
                   placeholder="What is the purpose of this group?"
                   className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:border-white/10 dark:bg-[#111b21] dark:text-cream"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl bg-amber-500/10 border border-amber-500/20 p-3">
+                <div>
+                  <p className="text-xs font-bold text-gray-900 dark:text-cream">Announcement Only Mode</p>
+                  <p className="text-[11px] text-gray-500 dark:text-cream/60">Only admins can post messages</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={adminOnly}
+                  onChange={(e) => setAdminOnly(e.target.checked)}
+                  className="size-4 accent-emerald-600 rounded cursor-pointer"
                 />
               </div>
 

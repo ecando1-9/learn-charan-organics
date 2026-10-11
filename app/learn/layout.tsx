@@ -4,7 +4,7 @@ export default function LearnLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-[#07140f] text-cream flex flex-col">
       <SiteHeader />
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 pb-20 lg:pb-0">{children}</div>
     </div>
   );
 }

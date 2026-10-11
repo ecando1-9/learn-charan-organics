@@ -149,7 +149,7 @@ export function CourseFilters({ courses }: { courses: Course[] }) {
               className="
                 w-full appearance-none
                 rounded-xl
-                bg-forest/[0.04] dark:bg-white/[0.06]
+                bg-forest/[0.04] dark:bg-[#1a2e1f]
                 border border-transparent
                 pl-4 pr-9 py-2.5
                 text-sm font-semibold
@@ -157,15 +157,15 @@ export function CourseFilters({ courses }: { courses: Course[] }) {
                 outline-none
                 cursor-pointer
                 transition-all duration-200
-                hover:bg-forest/[0.07] dark:hover:bg-white/[0.10]
-                focus:border-leaf/40 focus:bg-white dark:focus:bg-white/10
+                hover:bg-forest/[0.07] dark:hover:bg-[#1f3824]
+                focus:border-leaf/40 focus:bg-white dark:focus:bg-[#1a2e1f]
                 focus:shadow-[0_0_0_3px_rgba(74,163,96,0.12)]
               "
               aria-label="Filter by category"
             >
-              <option value="All">All Categories</option>
+              <option value="All" className="bg-[#1a2e1f] text-cream dark:bg-[#1a2e1f] dark:text-cream">All Categories</option>
               {categories.map((item) => (
-                <option key={item}>{item}</option>
+                <option key={item} className="bg-[#1a2e1f] text-cream dark:bg-[#1a2e1f] dark:text-cream">{item}</option>
               ))}
             </select>
             <ChevronDown
@@ -185,7 +185,7 @@ export function CourseFilters({ courses }: { courses: Course[] }) {
               className="
                 w-full appearance-none
                 rounded-xl
-                bg-forest/[0.04] dark:bg-white/[0.06]
+                bg-forest/[0.04] dark:bg-[#1a2e1f]
                 border border-transparent
                 pl-4 pr-9 py-2.5
                 text-sm font-semibold
@@ -193,14 +193,14 @@ export function CourseFilters({ courses }: { courses: Course[] }) {
                 outline-none
                 cursor-pointer
                 transition-all duration-200
-                hover:bg-forest/[0.07] dark:hover:bg-white/[0.10]
-                focus:border-leaf/40 focus:bg-white dark:focus:bg-white/10
+                hover:bg-forest/[0.07] dark:hover:bg-[#1f3824]
+                focus:border-leaf/40 focus:bg-white dark:focus:bg-[#1a2e1f]
                 focus:shadow-[0_0_0_3px_rgba(74,163,96,0.12)]
               "
               aria-label="Filter by level"
             >
               {["All", "Beginner", "Intermediate", "Advanced"].map((item) => (
-                <option key={item} value={item}>
+                <option key={item} value={item} className="bg-[#1a2e1f] text-cream dark:bg-[#1a2e1f] dark:text-cream">
                   {item === "All" ? "All Levels" : item}
                 </option>
               ))}

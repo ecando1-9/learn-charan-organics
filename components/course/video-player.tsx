@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { BunnyPlayer } from "@/components/course/bunny-player";
 import { AntiTheft } from "@/components/course/anti-theft";
+import { toggleLessonCompletion } from "@/app/actions/progress";
 
 export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson }) {
   const [watermark, setWatermark] = useState({ x: 18, y: 18 });
   const [student, setStudent] = useState({ name: "Student", email: "student" });
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [togglingCompletion, setTogglingCompletion] = useState(false);
 
   const [videoSource, setVideoSource] = useState<{
     type: "cloudinary" | "youtube" | "bunny";
@@ -33,13 +36,36 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? "Student",
         email: user.email ?? "student"
       });
+
+      // Check initial lesson completion state
+      if (course.id) {
+        supabase
+          .from("lms_progress")
+          .select("completed")
+          .eq("user_id", user.id)
+          .eq("course_id", course.id)
+          .maybeSingle()
+          .then(({ data: prog }) => {
+            if (prog?.completed) setIsCompleted(true);
+          });
+      }
     });
 
     const interval = window.setInterval(() => {
       setWatermark({ x: 8 + Math.random() * 68, y: 10 + Math.random() * 66 });
     }, 4200);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [course.id]);
+
+  async function handleToggleCompletion() {
+    const courseId = course.id || course.slug;
+    const lessonSlug = lesson.slug || "main-video";
+    setTogglingCompletion(true);
+    const nextState = !isCompleted;
+    setIsCompleted(nextState);
+    await toggleLessonCompletion(courseId, lessonSlug, nextState);
+    setTogglingCompletion(false);
+  }
 
   useEffect(() => {
     let active = true;
@@ -223,8 +249,21 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
           <p className="hidden text-sm font-bold uppercase tracking-[0.18em] text-moss lg:block">{course.title}</p>
           <h1 className="mt-1 text-xl font-black sm:text-2xl">{lesson.title}</h1>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button className="bg-leaf hover:bg-moss text-sm">
-              <CheckCircle2 size={16} /> Mark complete
+            <Button
+              onClick={handleToggleCompletion}
+              disabled={togglingCompletion}
+              className={`text-sm transition-all ${
+                isCompleted
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-leaf hover:bg-moss text-white"
+              }`}
+            >
+              {togglingCompletion ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={16} />
+              )}
+              {isCompleted ? "Completed ✅" : "Mark complete"}
             </Button>
             {course.pdfUrl && (
               <Button onClick={() => setShowNotes(true)} variant="secondary" className="border-white/10 bg-white/10 text-white hover:bg-white/15 text-sm">

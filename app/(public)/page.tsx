@@ -5,13 +5,19 @@ import { Section } from "@/components/ui/section";
 import { testimonials } from "@/lib/data";
 import { JoinAcademyCta } from "@/components/home/join-academy-cta";
 import { FreeClassesStrip } from "@/components/home/free-classes-strip";
-import { getPublishedCourses } from "@/lib/course-data";
+import { getPublishedCourses, getUserEnrolledCourseIds } from "@/lib/course-data";
 import { HeroCarousel } from "@/components/home/hero-carousel";
 import { HomeCourseTabs } from "@/components/home/home-course-tabs";
 import { TestimonialsSection } from "@/components/home/testimonials-section";
 
 export default async function HomePage() {
-  const courses = await getPublishedCourses();
+  const [courses, enrolledIds] = await Promise.all([
+    getPublishedCourses(),
+    getUserEnrolledCourseIds(),
+  ]);
+
+  const enrolledIdSet = new Set(enrolledIds);
+  const myCourses = courses.filter((c) => c.id && enrolledIdSet.has(c.id));
 
   return (
     <>
@@ -36,8 +42,31 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 3. Interactive Course Tabs: Recently Added | Featured | Trending */}
-      <HomeCourseTabs courses={courses} />
+      {/* 2.5 Quick Enrolled Student Strip */}
+      {myCourses.length > 0 && (
+        <section className="border-b border-forest/10 bg-emerald-500/10 dark:border-emerald-500/20 dark:bg-emerald-500/5 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <div className="flex items-center gap-3">
+              <div className="grid size-9 place-items-center rounded-full bg-emerald-600 text-white shrink-0">
+                <BookOpen size={18} />
+              </div>
+              <p className="text-xs sm:text-sm font-black text-forest dark:text-cream">
+                Welcome back! You have <span className="text-emerald-700 dark:text-emerald-400 font-black">{myCourses.length} active enrolled {myCourses.length === 1 ? "course" : "courses"}</span>.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/courses"
+              className="inline-flex items-center gap-1.5 rounded-full bg-forest px-4 py-1.5 text-xs font-bold text-white hover:bg-leaf transition shadow-sm dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            >
+              <span>View All In Portal</span>
+              <ArrowRight size={13} />
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* 3. Interactive Course Tabs: My Courses (if enrolled) | Recently Added | Featured | Trending */}
+      <HomeCourseTabs courses={courses} myCourses={myCourses} />
 
       {/* 4. Free Classes Strip */}
       <div id="free-classes">

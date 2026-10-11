@@ -82,14 +82,27 @@ export function MessageBubble({
         >
           {/* Attached Image Preview */}
           {message.file_url && isImage && (
-            <div className="mb-2 overflow-hidden rounded-xl border border-black/10 dark:border-white/10 max-w-sm">
-              <a href={message.file_url} target="_blank" rel="noopener noreferrer">
+            <div className="relative group mb-2 overflow-hidden rounded-xl border border-black/10 dark:border-white/10 max-w-sm">
+              <a
+                href={message.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View full image"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={message.file_url}
                   alt={message.file_name || "Attachment"}
                   className="w-full max-h-72 object-cover hover:scale-105 transition-transform duration-300"
                 />
+              </a>
+              <a
+                href={`/api/community/download?url=${encodeURIComponent(message.file_url)}&name=${encodeURIComponent(message.file_name || "image.jpg")}`}
+                download={message.file_name || "image.jpg"}
+                className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/60 hover:bg-emerald-600 text-white shadow-md backdrop-blur-sm transition"
+                title="Download image"
+              >
+                <Download size={14} />
               </a>
             </div>
           )}
@@ -104,19 +117,17 @@ export function MessageBubble({
                 <p className="text-xs font-bold truncate text-gray-900 dark:text-cream">
                   {message.file_name || "Document"}
                 </p>
-                <p className="text-[10px] text-gray-500 dark:text-cream/60 uppercase">
+                <p className="text-[10px] text-gray-500 dark:text-cream/60 uppercase font-semibold">
                   {message.file_type?.split("/")[1] || "Attachment"}
                 </p>
               </div>
               <a
-                href={message.file_url}
+                href={`/api/community/download?url=${encodeURIComponent(message.file_url)}&name=${encodeURIComponent(message.file_name || "download")}`}
                 download={message.file_name || "download"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="grid size-8 place-items-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700 transition shrink-0"
+                className="grid size-9 place-items-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 transition shrink-0 shadow-sm"
                 title="Download file"
               >
-                <Download size={14} />
+                <Download size={15} />
               </a>
             </div>
           )}

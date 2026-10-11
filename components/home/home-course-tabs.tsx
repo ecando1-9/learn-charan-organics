@@ -2,13 +2,22 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Flame, Sparkles, Star, BookOpen } from "lucide-react";
+import { ArrowRight, Flame, Sparkles, Star, BookOpen, GraduationCap } from "lucide-react";
 import { CourseCarousel } from "@/components/home/course-carousel";
 import { Button } from "@/components/ui/button";
 import type { Course } from "@/lib/types";
 
-export function HomeCourseTabs({ courses }: { courses: Course[] }) {
-  const [activeTab, setActiveTab] = useState<"recent" | "featured" | "trending">("recent");
+export function HomeCourseTabs({
+  courses,
+  myCourses = [],
+}: {
+  courses: Course[];
+  myCourses?: Course[];
+}) {
+  const hasEnrolled = myCourses.length > 0;
+  const [activeTab, setActiveTab] = useState<"my-courses" | "recent" | "featured" | "trending">(
+    hasEnrolled ? "my-courses" : "recent"
+  );
 
   // Collection 1: Recently Added (sorted by createdAt descending or newest)
   const recentlyAdded = useMemo(() => {
@@ -30,7 +39,9 @@ export function HomeCourseTabs({ courses }: { courses: Course[] }) {
   }, [courses]);
 
   const currentDisplayCourses =
-    activeTab === "recent"
+    activeTab === "my-courses"
+      ? myCourses
+      : activeTab === "recent"
       ? recentlyAdded
       : activeTab === "featured"
       ? featuredCourses
@@ -44,15 +55,32 @@ export function HomeCourseTabs({ courses }: { courses: Course[] }) {
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between border-b border-forest/10 dark:border-white/10 pb-6">
           <div>
             <p className="font-bold uppercase tracking-[0.18em] text-leaf text-xs sm:text-sm">
-              Explore Our Catalog
+              {activeTab === "my-courses" ? "Welcome Back Student" : "Explore Our Catalog"}
             </p>
             <h2 className="mt-1 text-2xl font-black text-forest dark:text-cream sm:text-4xl">
-              Formulation Courses for You
+              {activeTab === "my-courses" ? "My Enrolled Courses" : "Formulation Courses for You"}
             </h2>
           </div>
 
-          {/* Interactive 3-Tab Filter Pill */}
+          {/* Interactive Filter Pills */}
           <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-white dark:bg-white/5 border border-forest/10 dark:border-white/10 shadow-sm">
+            {hasEnrolled && (
+              <button
+                onClick={() => setActiveTab("my-courses")}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "my-courses"
+                    ? "bg-forest text-cream shadow-md scale-105 dark:bg-emerald-600 dark:text-white"
+                    : "text-ink/65 dark:text-cream/65 hover:text-forest dark:hover:text-cream"
+                }`}
+              >
+                <GraduationCap size={15} />
+                <span>My Courses</span>
+                <span className="rounded-full bg-leaf/20 text-leaf dark:bg-white/20 dark:text-white text-[10px] font-black px-1.5 py-0.5">
+                  {myCourses.length}
+                </span>
+              </button>
+            )}
+
             <button
               onClick={() => setActiveTab("recent")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
@@ -87,7 +115,7 @@ export function HomeCourseTabs({ courses }: { courses: Course[] }) {
               onClick={() => setActiveTab("trending")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                 activeTab === "trending"
-                  ? "bg-flame text-white bg-orange-600 shadow-md scale-105"
+                  ? "bg-orange-600 text-white shadow-md scale-105"
                   : "text-ink/65 dark:text-cream/65 hover:text-orange-500"
               }`}
             >
@@ -113,13 +141,26 @@ export function HomeCourseTabs({ courses }: { courses: Course[] }) {
           </div>
         )}
 
-        {/* Bottom CTA */}
-        <div className="text-center pt-4">
-          <Link href="/courses">
-            <Button className="bg-leaf hover:bg-forest text-white font-bold px-8 py-3.5 rounded-full shadow-md text-sm sm:text-base transition-transform hover:scale-105">
-              View Full Catalog <ArrowRight size={18} className="ml-2" />
-            </Button>
-          </Link>
+        {/* Bottom CTA / Link */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-forest/5 dark:border-white/5">
+          {hasEnrolled && (
+            <Link
+              href="/dashboard/courses"
+              className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-leaf hover:text-forest dark:hover:text-cream transition"
+            >
+              <BookOpen size={16} />
+              <span>Open Student Portal (All {myCourses.length} Enrolled Courses)</span>
+              <ArrowRight size={14} />
+            </Link>
+          )}
+
+          <div className="sm:ml-auto">
+            <Link href="/courses">
+              <Button className="bg-leaf hover:bg-forest text-white font-bold px-8 py-3.5 rounded-full shadow-md text-sm sm:text-base transition-transform hover:scale-105">
+                View Full Catalog <ArrowRight size={18} className="ml-2" />
+              </Button>
+            </Link>
+          </div>
         </div>
 
       </div>

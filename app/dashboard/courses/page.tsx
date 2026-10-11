@@ -1,8 +1,41 @@
 import { CourseCard } from "@/components/course/course-card";
-import { getPublishedCourses } from "@/lib/course-data";
+import { getPublishedCourses, getUserEnrolledCourseIds } from "@/lib/course-data";
 
 export default async function MyCoursesPage() {
-  const courses = await getPublishedCourses();
+  const [allCourses, enrolledIds] = await Promise.all([
+    getPublishedCourses(),
+    getUserEnrolledCourseIds(),
+  ]);
 
-  return <div><h1 className="text-3xl font-black text-forest dark:text-cream">My Courses</h1>{courses.length ? <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">{courses.slice(0, 3).map((course) => <CourseCard key={course.slug} course={course} />)}</div> : <div className="mt-6 rounded-[2rem] bg-white p-6 text-sm font-semibold text-ink/60 shadow-soft dark:bg-white/5 dark:text-cream/60">No enrolled/published courses are available yet.</div>}</div>;
+  // Only show courses the current user is actually enrolled in
+  const enrolledIdSet = new Set(enrolledIds);
+  const myCourses = allCourses.filter((course) => course.id && enrolledIdSet.has(course.id));
+
+  return (
+    <div>
+      <h1 className="text-3xl font-black text-forest dark:text-cream">My Courses</h1>
+
+      {myCourses.length ? (
+        <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {myCourses.map((course) => (
+            <CourseCard key={course.slug} course={course} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-[2rem] bg-white p-10 text-center shadow-soft dark:bg-white/5">
+          <div className="text-4xl mb-4">📚</div>
+          <h2 className="text-xl font-black text-forest dark:text-cream">No enrolled courses yet</h2>
+          <p className="mt-2 text-sm text-ink/60 dark:text-cream/60">
+            You haven&apos;t enrolled in any courses yet. Browse our courses and start learning!
+          </p>
+          <a
+            href="/courses"
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-forest px-6 py-2.5 text-sm font-bold text-cream hover:bg-leaf transition"
+          >
+            Browse Courses
+          </a>
+        </div>
+      )}
+    </div>
+  );
 }

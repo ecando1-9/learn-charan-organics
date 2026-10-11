@@ -131,7 +131,7 @@ export function MessageInput({ groupId }: { groupId: string }) {
 
   return (
     <form onSubmit={handleSubmit}
-      className="border-t border-gray-200/80 bg-[#f0f2f5] p-3 sm:p-4 dark:border-white/10 dark:bg-[#111b21]"
+      className="border-t border-gray-200/80 bg-[#f0f2f5] p-2.5 sm:p-4 dark:border-white/10 dark:bg-[#111b21]"
     >
       {error && (
         <p className="mb-2 rounded-xl bg-red-100 px-3 py-2 text-xs font-bold text-red-600 dark:bg-red-950/40 dark:text-red-400">

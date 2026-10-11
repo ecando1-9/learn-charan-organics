@@ -1,13 +1,31 @@
 import type { User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "yuvakiranreddy7@gmail.com")
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "yuvakiranreddy7@gmail.com,charanorganics@outlook.com,charanorganics@gmail.com")
   .split(",")
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
 
 export function getDefaultLmsRole(email?: string | null) {
   return email && ADMIN_EMAILS.includes(email.toLowerCase()) ? "admin" : "student";
+}
+
+export async function checkUserIsAdmin(userId: string, email?: string | null): Promise<boolean> {
+  if (email && getDefaultLmsRole(email) === "admin") {
+    return true;
+  }
+  try {
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from("lms_profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    return profile?.role === "admin";
+  } catch {
+    return false;
+  }
 }
 
 /**

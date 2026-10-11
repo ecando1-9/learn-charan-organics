@@ -1,3 +1,10 @@
+import { SiteHeader } from "@/components/layout/site-header";
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  return <main className="grid min-h-screen place-items-center bg-linen p-4 dark:bg-[#07140f]">{children}</main>;
+  return (
+    <div className="min-h-screen bg-linen dark:bg-[#07140f] flex flex-col">
+      <SiteHeader />
+      <main className="flex-1 grid place-items-center p-4 pb-24 lg:pb-8">{children}</main>
+    </div>
+  );
 }
