@@ -76,7 +76,7 @@ export function CourseCard({ course }: { course: Course }) {
 
         {/* Price & CTA Footer */}
         <div className="flex items-center justify-between border-t border-forest/10 dark:border-white/10 pt-2 sm:pt-4 mt-auto">
-          <span className="text-xs sm:text-base font-black text-forest dark:text-cream">
+          <div className="text-xs sm:text-base font-black text-forest dark:text-cream">
             {course.isEnrolled ? (
               <span className="text-emerald-700 dark:text-emerald-400 text-xs font-black flex items-center gap-1">
                 <CheckCircle2 size={13} /> Purchased
@@ -84,9 +84,16 @@ export function CourseCard({ course }: { course: Course }) {
             ) : isFree ? (
               <span className="text-leaf">FREE</span>
             ) : (
-              formatCurrency(course.price)
+              <span className="inline-flex items-baseline gap-1">
+                {course.durationVariants && course.durationVariants.length > 1 && (
+                  <span className="text-[10px] sm:text-xs font-semibold text-ink/45 dark:text-cream/45">
+                    From
+                  </span>
+                )}
+                {formatCurrency(course.price)}
+              </span>
             )}
-          </span>
+          </div>
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-bold transition-colors ${
               course.isEnrolled

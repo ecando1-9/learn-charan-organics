@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   CheckCircle2, Image as ImageIcon, IndianRupee,
-  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff, FileText
+  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff, FileText, Clock
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
@@ -40,6 +40,18 @@ const inputCls = "min-h-11 w-full bg-transparent text-sm outline-none dark:text-
 const wrapCls = "flex items-center gap-3 rounded-2xl border border-forest/15 bg-linen px-4 dark:bg-white/5 dark:border-white/15";
 const standaloneCls = "w-full rounded-2xl border border-forest/15 bg-linen px-4 py-3 text-sm font-semibold outline-none focus:border-leaf transition dark:bg-white/5 dark:border-white/15 dark:text-cream dark:placeholder:text-cream/40";
 
+export type DurationVariantItem = {
+  id: string;
+  name: string;
+  price: string;
+  isDefault?: boolean;
+};
+
+const DEFAULT_VARIANTS: DurationVariantItem[] = [
+  { id: "var_6m", name: "6 Months Access", price: "199", isDefault: true },
+  { id: "var_1y", name: "1 Year Access", price: "299", isDefault: false },
+];
+
 /* ─────────────────── ADD modal ─────────────────── */
 export function AddCourseModal() {
   const [open, setOpen] = useState(false);
@@ -50,6 +62,7 @@ export function AddCourseModal() {
   const [isFree, setIsFree] = useState(false);
   const [price, setPrice] = useState("199");
   const [price1Year, setPrice1Year] = useState("");
+  const [variants, setVariants] = useState<DurationVariantItem[]>(DEFAULT_VARIANTS);
   const [published, setPublished] = useState(true);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [description, setDescription] = useState("");
@@ -59,7 +72,7 @@ export function AddCourseModal() {
 
   function reset() {
     setTitle(""); setYoutubeUrl(""); setBunnyVideoId(""); setPdfUrl("");
-    setIsFree(false); setPrice("199"); setPrice1Year(""); setPublished(true);
+    setIsFree(false); setPrice("199"); setPrice1Year(""); setVariants(DEFAULT_VARIANTS); setPublished(true);
     setThumbnailUrl(""); setDescription(""); setSortOrder("1"); setMessage(null);
   }
   function close() { setOpen(false); reset(); }
@@ -75,8 +88,18 @@ export function AddCourseModal() {
     const courseSlug = slugify(title);
     const videoId = youtubeUrl ? getYoutubeId(youtubeUrl) : "dummy";
     const finalThumb = thumbnailUrl.trim() || (youtubeUrl ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "");
-    const finalPrice = isFree ? 0 : (Number(price) || 0);
-    const final1YearPrice = isFree ? 0 : (price1Year ? Number(price1Year) : null);
+    const defaultVar = variants.find((v) => v.isDefault) || variants[0];
+    const finalPrice = isFree ? 0 : (Number(defaultVar?.price) || Number(price) || 0);
+    const oneYearVar = variants.find((v) => v.name.toLowerCase().includes("1 year") || v.name.toLowerCase().includes("12 month"));
+    const final1YearPrice = isFree ? null : (oneYearVar ? Number(oneYearVar.price) : (price1Year ? Number(price1Year) : null));
+    const variantsPayload = isFree
+      ? []
+      : variants.map((v, i) => ({
+          id: v.id || `plan_${i + 1}`,
+          name: v.name.trim(),
+          price_inr: Number(v.price) || 0,
+          is_default: Boolean(v.isDefault),
+        }));
 
     let categoryId: string | null = null;
     try {
@@ -99,6 +122,7 @@ export function AddCourseModal() {
       pdf_url: pdfUrl || null,
       price_inr: finalPrice,
       price_1year_inr: final1YearPrice,
+      duration_variants: variantsPayload,
       published,
       sort_order: Number(sortOrder) || 1,
     };
@@ -106,12 +130,21 @@ export function AddCourseModal() {
     let course: any = null;
     let courseErr: any = null;
 
-    // Try upsert with is_free and price_1year_inr first
+    // Try upsert with duration_variants, price_1year_inr, and is_free
     let res = await supabase
       .from("lms_courses")
       .upsert({ ...basePayload, is_free: isFree }, { onConflict: "slug" })
       .select("id")
       .single();
+
+    if (res.error && res.error.message.includes("duration_variants")) {
+      delete basePayload.duration_variants;
+      res = await supabase
+        .from("lms_courses")
+        .upsert({ ...basePayload, is_free: isFree }, { onConflict: "slug" })
+        .select("id")
+        .single();
+    }
 
     if (res.error && res.error.message.includes("price_1year_inr")) {
       delete basePayload.price_1year_inr;
@@ -199,7 +232,7 @@ export function AddCourseModal() {
         <CourseModal
           title="Add New Course"
           subtitle="Fill in the details — it will appear in the course catalog."
-          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, published, thumbnailUrl, description, sortOrder }}
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
           setters={{
             setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
             setIsFree: (val: boolean) => {
@@ -207,7 +240,7 @@ export function AddCourseModal() {
               if (val) { setPrice("0"); setPrice1Year(""); }
               else if (price === "0") setPrice("199");
             },
-            setPrice, setPrice1Year,
+            setPrice, setPrice1Year, setVariants,
             setPublished, setThumbnailUrl, setDescription, setSortOrder
           }}
           loading={loading}
@@ -222,6 +255,26 @@ export function AddCourseModal() {
 }
 
 /* ─────────────────── EDIT modal ─────────────────── */
+function parseInitialVariants(rawVariants: any, basePrice: number, price1Year?: number): DurationVariantItem[] {
+  if (Array.isArray(rawVariants) && rawVariants.length > 0) {
+    return rawVariants.map((v, i) => ({
+      id: String(v.id || `plan_${i + 1}`),
+      name: String(v.name || "Access Plan"),
+      price: String(v.price_inr ?? v.price ?? basePrice),
+      isDefault: Boolean(v.is_default ?? v.isDefault ?? i === 0),
+    }));
+  }
+  const items: DurationVariantItem[] = [
+    { id: "var_6m", name: "6 Months Access", price: String(basePrice || 199), isDefault: true },
+  ];
+  if (price1Year && Number(price1Year) > 0) {
+    items.push({ id: "var_1y", name: "1 Year Access", price: String(price1Year), isDefault: false });
+  } else {
+    items.push({ id: "var_1y", name: "1 Year Access", price: String(Math.round((basePrice || 199) * 1.5)), isDefault: false });
+  }
+  return items;
+}
+
 type EditableCourse = {
   id: string;
   slug: string;
@@ -231,6 +284,7 @@ type EditableCourse = {
   pdfUrl: string;
   price: number;
   price1Year?: number;
+  durationVariants?: any;
   published: boolean;
   thumbnailUrl: string;
   description: string;
@@ -246,6 +300,9 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
   const [isFree, setIsFree] = useState(course.price === 0);
   const [price, setPrice] = useState(String(course.price));
   const [price1Year, setPrice1Year] = useState(course.price1Year ? String(course.price1Year) : "");
+  const [variants, setVariants] = useState<DurationVariantItem[]>(() =>
+    parseInitialVariants(course.durationVariants, course.price, course.price1Year)
+  );
   const [published, setPublished] = useState(course.published ?? true);
   const [thumbnailUrl, setThumbnailUrl] = useState(course.thumbnailUrl);
   const [description, setDescription] = useState(course.description);
@@ -264,6 +321,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       setIsFree(course.price === 0);
       setPrice(String(course.price));
       setPrice1Year(course.price1Year ? String(course.price1Year) : "");
+      setVariants(parseInitialVariants(course.durationVariants, course.price, course.price1Year));
       setPublished(course.published ?? true);
       setThumbnailUrl(course.thumbnailUrl);
       setDescription(course.description ?? "");
@@ -284,8 +342,18 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
     const supabase = createClient();
     const videoId = youtubeUrl ? getYoutubeId(youtubeUrl) : null;
     const finalThumb = thumbnailUrl.trim() || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "");
-    const finalPrice = isFree ? 0 : (Number(price) || 0);
-    const final1YearPrice = isFree ? 0 : (price1Year ? Number(price1Year) : null);
+    const defaultVar = variants.find((v) => v.isDefault) || variants[0];
+    const finalPrice = isFree ? 0 : (Number(defaultVar?.price) || Number(price) || 0);
+    const oneYearVar = variants.find((v) => v.name.toLowerCase().includes("1 year") || v.name.toLowerCase().includes("12 month"));
+    const final1YearPrice = isFree ? null : (oneYearVar ? Number(oneYearVar.price) : (price1Year ? Number(price1Year) : null));
+    const variantsPayload = isFree
+      ? []
+      : variants.map((v, i) => ({
+          id: v.id || `plan_${i + 1}`,
+          name: v.name.trim(),
+          price_inr: Number(v.price) || 0,
+          is_default: Boolean(v.isDefault),
+        }));
 
     const baseUpdate: any = {
       title,
@@ -295,6 +363,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       pdf_url: pdfUrl || null,
       price_inr: finalPrice,
       price_1year_inr: final1YearPrice,
+      duration_variants: variantsPayload,
       published,
       sort_order: Number(sortOrder) || 1,
     };
@@ -304,6 +373,15 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       .from("lms_courses")
       .update({ ...baseUpdate, is_free: isFree })
       .eq("id", course.id);
+
+    if (courseErr && courseErr.message.includes("duration_variants")) {
+      delete baseUpdate.duration_variants;
+      const res = await supabase
+        .from("lms_courses")
+        .update({ ...baseUpdate, is_free: isFree })
+        .eq("id", course.id);
+      courseErr = res.error;
+    }
 
     if (courseErr && courseErr.message.includes("price_1year_inr")) {
       delete baseUpdate.price_1year_inr;
@@ -421,7 +499,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
         <CourseModal
           title="Edit Course"
           subtitle="Update the course details below. Changes apply immediately."
-          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, published, thumbnailUrl, description, sortOrder }}
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
           setters={{
             setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
             setIsFree: (val: boolean) => {
@@ -429,7 +507,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
               if (val) { setPrice("0"); setPrice1Year(""); }
               else if (price === "0") setPrice("199");
             },
-            setPrice, setPrice1Year,
+            setPrice, setPrice1Year, setVariants,
             setPublished, setThumbnailUrl, setDescription, setSortOrder
           }}
           loading={loading}
@@ -462,7 +540,7 @@ function CourseModal({
   subtitle: string;
   fields: {
     title: string; youtubeUrl: string; bunnyVideoId: string; pdfUrl: string;
-    isFree: boolean; price: string; price1Year: string; published: boolean; thumbnailUrl: string;
+    isFree: boolean; price: string; price1Year: string; variants: DurationVariantItem[]; published: boolean; thumbnailUrl: string;
     description: string; sortOrder: string;
   };
   setters: {
@@ -473,6 +551,7 @@ function CourseModal({
     setIsFree: (v: boolean) => void;
     setPrice: (v: string) => void;
     setPrice1Year: (v: string) => void;
+    setVariants: (v: DurationVariantItem[]) => void;
     setPublished: (v: boolean) => void;
     setThumbnailUrl: (v: string) => void;
     setDescription: (v: string) => void;
@@ -697,36 +776,148 @@ function CourseModal({
             </div>
           </Field>
 
-          {/* Pricing & Duration Tiers */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="6 Months Access Price (₹) *" hint="Default student enrollment duration">
-              <div className={`${wrapCls} ${fields.isFree ? "opacity-50 pointer-events-none bg-black/5" : ""}`}>
-                <IndianRupee size={17} className="shrink-0 text-leaf" />
-                <input
-                  value={fields.isFree ? "0" : fields.price}
-                  onChange={(e) => setters.setPrice(e.target.value)}
-                  disabled={fields.isFree}
-                  type="number" min="0"
-                  placeholder="199"
-                  className={inputCls + " font-semibold"}
-                />
+          {/* Dynamic Access Duration & Pricing Variants */}
+          {!fields.isFree ? (
+            <div className="rounded-2xl border border-forest/15 dark:border-white/15 bg-linen/50 dark:bg-white/5 p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                <div>
+                  <label className="text-xs font-bold text-forest dark:text-cream uppercase tracking-wide flex items-center gap-1.5">
+                    <Clock size={14} className="text-leaf" />
+                    Access Duration & Pricing Variants
+                  </label>
+                  <p className="text-[11px] text-ink/55 dark:text-cream/55">
+                    Add flexible duration plans (e.g. 3 Months, 6 Months, 1 Year, Lifetime). Students can choose from these options.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newId = `var_${Date.now()}`;
+                    setters.setVariants([
+                      ...fields.variants,
+                      { id: newId, name: "Custom Access", price: "249", isDefault: false },
+                    ]);
+                  }}
+                  className="inline-flex items-center gap-1 self-start sm:self-auto rounded-xl bg-forest/10 hover:bg-forest/15 text-forest dark:bg-white/10 dark:text-cream px-3 py-1.5 text-xs font-bold transition"
+                >
+                  <Plus size={13} /> Add Variant
+                </button>
               </div>
-            </Field>
 
-            <Field label="1 Year Access Price (₹)" hint="Optional extended access tier">
-              <div className={`${wrapCls} ${fields.isFree ? "opacity-50 pointer-events-none bg-black/5" : ""}`}>
-                <IndianRupee size={17} className="shrink-0 text-leaf" />
-                <input
-                  value={fields.isFree ? "0" : fields.price1Year}
-                  onChange={(e) => setters.setPrice1Year(e.target.value)}
-                  disabled={fields.isFree}
-                  type="number" min="0"
-                  placeholder="e.g. 299"
-                  className={inputCls + " font-semibold"}
-                />
+              {/* Quick Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] font-bold text-ink/40 dark:text-cream/40 uppercase">Quick Add:</span>
+                {[
+                  { name: "3 Months Access", price: "149" },
+                  { name: "6 Months Access", price: "199" },
+                  { name: "1 Year Access", price: "299" },
+                  { name: "Lifetime Access", price: "499" },
+                ].map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => {
+                      if (fields.variants.some((v) => v.name.toLowerCase() === preset.name.toLowerCase())) return;
+                      setters.setVariants([
+                        ...fields.variants,
+                        { id: `var_${Date.now()}`, name: preset.name, price: preset.price, isDefault: false },
+                      ]);
+                    }}
+                    className="rounded-lg border border-forest/15 bg-white dark:bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-forest dark:text-cream hover:border-leaf/50 hover:text-leaf transition"
+                  >
+                    + {preset.name}
+                  </button>
+                ))}
               </div>
-            </Field>
-          </div>
+
+              {/* Variant Rows */}
+              <div className="space-y-2 pt-1">
+                {fields.variants.map((v, idx) => (
+                  <div
+                    key={v.id || idx}
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition ${
+                      v.isDefault
+                        ? "border-leaf/50 bg-leaf/5 shadow-sm"
+                        : "border-forest/10 bg-white dark:bg-white/5 dark:border-white/10"
+                    }`}
+                  >
+                    {/* Plan Name */}
+                    <div className="flex-1 min-w-0">
+                      <input
+                        value={v.name}
+                        onChange={(e) => {
+                          const next = [...fields.variants];
+                          next[idx].name = e.target.value;
+                          setters.setVariants(next);
+                        }}
+                        placeholder="e.g. 6 Months Access"
+                        className="w-full bg-transparent text-xs font-bold text-forest dark:text-cream outline-none placeholder:text-ink/30"
+                      />
+                    </div>
+
+                    {/* Price */}
+                    <div className="flex items-center gap-1 bg-linen dark:bg-white/10 px-2.5 py-1 rounded-lg border border-forest/10 dark:border-white/10 w-28 shrink-0">
+                      <span className="text-xs font-black text-leaf">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={v.price}
+                        onChange={(e) => {
+                          const next = [...fields.variants];
+                          next[idx].price = e.target.value;
+                          setters.setVariants(next);
+                        }}
+                        placeholder="199"
+                        className="w-full bg-transparent text-xs font-bold text-forest dark:text-cream outline-none"
+                      />
+                    </div>
+
+                    {/* Default Radio */}
+                    <button
+                      type="button"
+                      title="Mark as default plan"
+                      onClick={() => {
+                        const next = fields.variants.map((item, i) => ({
+                          ...item,
+                          isDefault: i === idx,
+                        }));
+                        setters.setVariants(next);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition shrink-0 ${
+                        v.isDefault
+                          ? "bg-leaf text-white"
+                          : "bg-forest/5 text-ink/50 hover:bg-forest/10 dark:bg-white/10 dark:text-cream/60"
+                      }`}
+                    >
+                      {v.isDefault ? "★ Default" : "Make Default"}
+                    </button>
+
+                    {/* Delete Button */}
+                    {fields.variants.length > 1 && (
+                      <button
+                        type="button"
+                        title="Remove variant"
+                        onClick={() => {
+                          const next = fields.variants.filter((_, i) => i !== idx);
+                          if (v.isDefault && next.length > 0) {
+                            next[0].isDefault = true;
+                          }
+                          setters.setVariants(next);
+                        }}
+                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition shrink-0"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-leaf/20 bg-leaf/10 p-3.5 text-xs text-leaf font-bold flex items-center gap-2">
+              <CheckCircle2 size={16} /> 100% Free Course — Duration is unlimited for all students.
+            </div>
+          )}
 
           <Field label="Position (Order)" hint="Lower = appears first (1, 2, 3...)">
             <div className={wrapCls}>

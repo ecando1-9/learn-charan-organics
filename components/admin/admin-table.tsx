@@ -410,6 +410,20 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                     </div>
                   </div>
 
+                  {/* Configured Duration Plan Badges */}
+                  {Array.isArray(course.duration_variants) && course.duration_variants.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {course.duration_variants.map((v: any, idx: number) => (
+                        <span
+                          key={v.id || idx}
+                          className="inline-flex items-center gap-1 rounded-lg bg-forest/5 dark:bg-white/10 border border-forest/10 dark:border-white/10 px-2 py-0.5 text-[10px] font-bold text-ink/70 dark:text-cream/70"
+                        >
+                          <span className="text-leaf">●</span> {v.name}: ₹{Number(v.price_inr ?? v.price ?? course.price_inr).toLocaleString("en-IN")}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Quick Action Buttons */}
                   <div className="flex items-center gap-2 pt-1">
                     <button
@@ -457,6 +471,7 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
             pdfUrl: editingCourse.pdf_url ?? "",
             price: editingCourse.price_inr,
             price1Year: editingCourse.price_1year_inr ? Number(editingCourse.price_1year_inr) : undefined,
+            durationVariants: editingCourse.duration_variants,
             published: editingCourse.published ?? true,
             thumbnailUrl: editingCourse.thumbnail_url ?? "",
             description: editingCourse.description ?? "",

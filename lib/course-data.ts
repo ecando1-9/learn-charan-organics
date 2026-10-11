@@ -13,6 +13,7 @@ type DbCourse = {
   pdf_url: string | null;
   price_inr: number;
   price_1year_inr?: number | null;
+  duration_variants?: any;
   is_free: boolean;
   level: "beginner" | "intermediate" | "advanced";
   language: string;
@@ -71,7 +72,14 @@ function defaultThumbnail(course: DbCourse & { bunny_video_id?: string | null })
   return "/globe.svg";
 }
 
+import { parseDurationVariants } from "@/lib/course-variants";
+
+
 function buildCourse(course: DbCourse, categoryName: string, modules: Module[] = []): Course {
+  const isFree = course.is_free === true || Number(course.price_inr ?? 0) === 0;
+  const basePrice = isFree ? 0 : Number(course.price_inr);
+  const variants = isFree ? [] : parseDurationVariants(course.duration_variants, basePrice, course.price_1year_inr);
+
   return {
     id: course.id,
     slug: course.slug,
@@ -83,8 +91,9 @@ function buildCourse(course: DbCourse, categoryName: string, modules: Module[] =
     duration: course.duration_minutes > 0 ? `${course.duration_minutes} min` : "Video lesson",
     level: toLevel(course.level),
     language: course.language,
-    price: (course.is_free === true || Number(course.price_inr ?? 0) === 0) ? 0 : course.price_inr,
+    price: basePrice,
     price1Year: course.price_1year_inr ? Number(course.price_1year_inr) : undefined,
+    durationVariants: variants,
     thumbnail: course.thumbnail_url || defaultThumbnail(course),
     youtubeUrl: course.youtube_url || undefined,
     pdfUrl: course.pdf_url || undefined,

@@ -17,6 +17,13 @@ export type Module = {
   lessons: Lesson[];
 };
 
+export type CourseDurationVariant = {
+  id: string;
+  name: string;
+  price: number;
+  isDefault?: boolean;
+};
+
 export type Course = {
   id?: string;
   slug: string;
@@ -30,6 +37,7 @@ export type Course = {
   language: string;
   price: number;
   price1Year?: number;
+  durationVariants?: CourseDurationVariant[];
   thumbnail: string;
   youtubeUrl?: string;
   pdfUrl?: string;

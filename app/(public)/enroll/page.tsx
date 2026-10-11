@@ -11,6 +11,11 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { submitEnrollmentRequest } from "@/app/actions/enrollment";
+import {
+  CourseDurationVariant,
+  parseDurationVariants,
+  getSelectedVariant,
+} from "@/lib/course-variants";
 
 const UPI_ID = "8985482084@hdfc";
 
@@ -22,10 +27,10 @@ type Course = {
   youtube_url: string | null;
   price_inr: number;
   price_1year_inr?: number | null;
+  duration_variants?: any;
   is_free: boolean;
+  variants: CourseDurationVariant[];
 };
-
-type DurationOption = "6_months" | "1_year";
 
 function getThumbnail(c: Course) {
   if (c.thumbnail_url) return c.thumbnail_url;
@@ -44,8 +49,8 @@ export default function EnrollPage() {
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  // Map of courseId -> DurationOption ("6_months" | "1_year")
-  const [durations, setDurations] = useState<Record<string, DurationOption>>({});
+  // Map of courseId -> variantId (string)
+  const [durations, setDurations] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [redirectingFree, setRedirectingFree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -58,59 +63,91 @@ export default function EnrollPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from("lms_courses")
-      .select("id,title,slug,thumbnail_url,youtube_url,price_inr,price_1year_inr,is_free")
-      .eq("published", true)
-      .order("sort_order", { ascending: true })
-      .then(({ data }) => {
-        const all = (data ?? []) as Course[];
+    async function loadCourses() {
+      const supabase = createClient();
+      let rawData: any[] = [];
 
-        // If a specific free course was requested, redirect to watch immediately
-        if (preselect) {
-          const found = all.find((c) => c.slug === preselect);
-          if (found && (found.is_free || Number(found.price_inr) === 0)) {
-            setRedirectingFree(true);
-            router.replace(`/learn/${found.slug}/main-video`);
-            return;
-          }
-          if (found) {
-            setSelected(new Set([found.id]));
-          }
-        }
+      // Try selecting duration_variants, fallback gracefully if not present in schema
+      const { data, error } = await supabase
+        .from("lms_courses")
+        .select("id,title,slug,thumbnail_url,youtube_url,price_inr,price_1year_inr,duration_variants,is_free")
+        .eq("published", true)
+        .order("sort_order", { ascending: true });
 
-        // Only show paid courses on the enrollment page
-        const paid = all.filter((c) => !c.is_free && Number(c.price_inr) > 0);
-        setCourses(paid);
+      if (!error && data) {
+        rawData = data;
+      } else {
+        const { data: fallback } = await supabase
+          .from("lms_courses")
+          .select("id,title,slug,thumbnail_url,youtube_url,price_inr,price_1year_inr,is_free")
+          .eq("published", true)
+          .order("sort_order", { ascending: true });
+        rawData = fallback ?? [];
+      }
 
-        // If no preselected course but courses exist, preselect the first one by default for immediate convenience
-        if (!preselect && paid.length > 0) {
-          setSelected(new Set([paid[0].id]));
-        }
-
-        // Initialize default duration as 6_months for all
-        const initialDurations: Record<string, DurationOption> = {};
-        paid.forEach((c) => {
-          initialDurations[c.id] = "6_months";
-        });
-        setDurations(initialDurations);
-
-        setLoading(false);
+      const all: Course[] = rawData.map((c: any) => {
+        const basePrice = Number(c.price_inr) || 0;
+        const variants = parseDurationVariants(c.duration_variants, basePrice, c.price_1year_inr);
+        return {
+          ...c,
+          price_inr: basePrice,
+          variants,
+        };
       });
+
+      // If a specific free course was requested, redirect to watch immediately
+      if (preselect) {
+        const found = all.find((c) => c.slug === preselect);
+        if (found && (found.is_free || Number(found.price_inr) === 0)) {
+          setRedirectingFree(true);
+          router.replace(`/learn/${found.slug}/main-video`);
+          return;
+        }
+        if (found) {
+          setSelected(new Set([found.id]));
+        }
+      }
+
+      // Only show paid courses on the enrollment page
+      const paid = all.filter((c) => !c.is_free && Number(c.price_inr) > 0);
+      setCourses(paid);
+
+      // If no preselected course but courses exist, preselect the first one by default for immediate convenience
+      if (!preselect && paid.length > 0) {
+        setSelected(new Set([paid[0].id]));
+      }
+
+      // Initialize default duration variant for each paid course
+      const initialDurations: Record<string, string> = {};
+      paid.forEach((c) => {
+        const def = c.variants.find((v) => v.isDefault) || c.variants[0];
+        if (def) {
+          initialDurations[c.id] = def.id;
+        }
+      });
+      setDurations(initialDurations);
+
+      setLoading(false);
+    }
+
+    loadCourses();
   }, [preselect, router]);
 
-  // Price helper based on selected duration
-  function getCoursePrice(c: Course, duration: DurationOption = "6_months") {
-    const basePrice = Number(c.price_inr) > 0 ? Number(c.price_inr) : 199;
-    if (duration === "1_year") {
-      if (c.price_1year_inr && Number(c.price_1year_inr) > 0) {
-        return Number(c.price_1year_inr);
+  // Variant helper based on selected plan
+  function getCourseActiveVariant(c: Course, variantId?: string): CourseDurationVariant {
+    const activeId = variantId || durations[c.id];
+    return (
+      getSelectedVariant(c.variants, activeId) || {
+        id: "plan_default",
+        name: "Standard Access",
+        price: Number(c.price_inr) || 199,
+        isDefault: true,
       }
-      // If 1-year price wasn't explicitly configured, offer 1 year at 1.5x base price rounded
-      return Math.round(basePrice * 1.5);
-    }
-    return basePrice;
+    );
+  }
+
+  function getCoursePrice(c: Course, variantId?: string): number {
+    return getCourseActiveVariant(c, variantId).price;
   }
 
   function toggleCourse(id: string) {
@@ -125,10 +162,10 @@ export default function EnrollPage() {
     });
   }
 
-  function toggleDuration(courseId: string, duration: DurationOption) {
+  function toggleDuration(courseId: string, variantId: string) {
     setDurations((prev) => ({
       ...prev,
-      [courseId]: duration,
+      [courseId]: variantId,
     }));
   }
 
@@ -185,8 +222,7 @@ export default function EnrollPage() {
   const selectedCourses = courses.filter((c) => selected.has(c.id));
 
   const totalAmount = selectedCourses.reduce((sum, c) => {
-    const dur = durations[c.id] || "6_months";
-    return sum + getCoursePrice(c, dur);
+    return sum + getCoursePrice(c, durations[c.id]);
   }, 0);
 
   async function handleSubmit() {
@@ -215,9 +251,8 @@ export default function EnrollPage() {
     const courseIds = [...selected];
     const courseTitles = selectedCourses
       .map((c) => {
-        const dur = durations[c.id] || "6_months";
-        const durLabel = dur === "1_year" ? "1 Year Access" : "6 Months Access";
-        return `${c.title} (${durLabel})`;
+        const activeVar = getCourseActiveVariant(c, durations[c.id]);
+        return `${c.title} (${activeVar.name})`;
       })
       .join(", ");
 
@@ -391,10 +426,8 @@ export default function EnrollPage() {
                 <div className="mt-4 space-y-3">
                   {courses.map((course) => {
                     const isChecked = selected.has(course.id);
-                    const currentDur = durations[course.id] || "6_months";
-                    const price6m = getCoursePrice(course, "6_months");
-                    const price1y = getCoursePrice(course, "1_year");
-                    const activePrice = getCoursePrice(course, currentDur);
+                    const activeVariant = getCourseActiveVariant(course);
+                    const activePrice = activeVariant.price;
 
                     return (
                       <div
@@ -441,35 +474,30 @@ export default function EnrollPage() {
                               </p>
                             </div>
 
-                            {/* Access Duration Selector (Visible when selected) */}
-                            {isChecked && (
+                            {/* Access Duration Variants Selector (Visible when selected) */}
+                            {isChecked && course.variants && course.variants.length > 0 && (
                               <div className="mt-3 pt-3 border-t border-forest/10 dark:border-white/10 flex flex-wrap items-center gap-2">
                                 <span className="text-[11px] font-bold text-ink/60 dark:text-cream/60 flex items-center gap-1">
-                                  <Clock size={12} /> Access Duration:
+                                  <Clock size={12} /> Access Plan:
                                 </span>
-                                <div className="inline-flex rounded-xl bg-forest/5 p-0.5 dark:bg-white/10">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleDuration(course.id, "6_months")}
-                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-                                      currentDur === "6_months"
-                                        ? "bg-forest text-white shadow-sm"
-                                        : "text-ink/70 dark:text-cream/70 hover:text-ink"
-                                    }`}
-                                  >
-                                    6 Months (₹{price6m.toLocaleString("en-IN")})
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleDuration(course.id, "1_year")}
-                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-                                      currentDur === "1_year"
-                                        ? "bg-forest text-white shadow-sm"
-                                        : "text-ink/70 dark:text-cream/70 hover:text-ink"
-                                    }`}
-                                  >
-                                    1 Year (₹{price1y.toLocaleString("en-IN")})
-                                  </button>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {course.variants.map((v) => {
+                                    const isCurrent = activeVariant.id === v.id;
+                                    return (
+                                      <button
+                                        key={v.id}
+                                        type="button"
+                                        onClick={() => toggleDuration(course.id, v.id)}
+                                        className={`px-3 py-1 text-xs font-bold rounded-xl transition border ${
+                                          isCurrent
+                                            ? "bg-forest text-white border-forest shadow-sm dark:bg-emerald-600 dark:border-emerald-500"
+                                            : "bg-forest/5 text-ink/75 border-transparent hover:bg-forest/10 dark:bg-white/10 dark:text-cream/75"
+                                        }`}
+                                      >
+                                        {v.name} (₹{v.price.toLocaleString("en-IN")})
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -480,8 +508,8 @@ export default function EnrollPage() {
                             <span className="text-base font-black text-leaf">
                               ₹{activePrice.toLocaleString("en-IN")}
                             </span>
-                            <p className="text-[10px] text-ink/45 dark:text-cream/45">
-                              {currentDur === "1_year" ? "1-Year Access" : "6-Month Access"}
+                            <p className="text-[10px] text-ink/45 dark:text-cream/45 line-clamp-1 max-w-[120px]">
+                              {activeVariant.name}
                             </p>
                           </div>
                         </div>
@@ -525,14 +553,13 @@ export default function EnrollPage() {
                   <div className="space-y-2 rounded-2xl bg-linen/50 dark:bg-white/5 p-3.5 text-xs">
                     <p className="font-bold text-forest dark:text-cream mb-1">Order Summary:</p>
                     {selectedCourses.map((c) => {
-                      const dur = durations[c.id] || "6_months";
-                      const p = getCoursePrice(c, dur);
+                      const activeVar = getCourseActiveVariant(c);
                       return (
                         <div key={c.id} className="flex justify-between items-center text-ink/75 dark:text-cream/75">
                           <span className="truncate max-w-[200px]">
-                            • {c.title} <span className="text-[10px] text-ink/40">({dur === "1_year" ? "1Y" : "6M"})</span>
+                            • {c.title} <span className="text-[10px] text-ink/40">({activeVar.name})</span>
                           </span>
-                          <span className="font-bold text-forest dark:text-cream">₹{p.toLocaleString("en-IN")}</span>
+                          <span className="font-bold text-forest dark:text-cream">₹{activeVar.price.toLocaleString("en-IN")}</span>
                         </div>
                       );
                     })}

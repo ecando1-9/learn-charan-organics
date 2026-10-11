@@ -14,6 +14,7 @@ export type AdminCourse = {
   pdf_url: string | null;
   price_inr: number;
   price_1year_inr?: number | null;
+  duration_variants?: any;
   published: boolean;
   created_at: string;
   sort_order: number;
