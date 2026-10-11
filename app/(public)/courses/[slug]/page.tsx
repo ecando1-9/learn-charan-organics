@@ -151,7 +151,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
 
               {/* ── PAID COURSE: not enrolled, no pending ── */}
               {!isFree && !isEnrolled && !hasPendingRequest && (
-                <div className="space-y-3.5">
+                <div className="space-y-4">
                   <div className="flex items-baseline justify-between">
                     <div>
                       <span className="text-xs font-bold uppercase tracking-wider text-ink/50 dark:text-cream/50">Starts from</span>
@@ -161,24 +161,56 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                     </div>
                     {course.durationVariants && course.durationVariants.length > 1 && (
                       <span className="text-[11px] font-black text-leaf bg-leaf/10 px-2.5 py-1 rounded-full">
-                        {course.durationVariants.length} Plans Available
+                        {course.durationVariants.length} Access Plans
                       </span>
                     )}
                   </div>
 
+                  {/* Rich Duration Plans with Savings & Best Value Badges */}
                   {course.durationVariants && course.durationVariants.length > 0 && (
-                    <div className="space-y-1.5 rounded-2xl bg-linen/60 dark:bg-white/5 p-3 text-xs border border-forest/10 dark:border-white/10">
-                      <p className="font-bold text-forest dark:text-cream text-[11px] flex items-center gap-1.5">
-                        <Clock size={12} className="text-leaf" /> Available Duration Plans:
+                    <div className="space-y-2">
+                      <p className="font-bold text-forest dark:text-cream text-xs flex items-center gap-1.5">
+                        <Clock size={13} className="text-leaf" /> Select Access Duration:
                       </p>
-                      <div className="space-y-1 pt-1">
+                      <div className="space-y-2">
                         {course.durationVariants.map((v) => (
-                          <div key={v.id} className="flex items-center justify-between py-1 px-2.5 rounded-xl bg-white/80 dark:bg-white/5 text-xs font-medium">
-                            <span className="text-ink/80 dark:text-cream/80 flex items-center gap-1.5">
-                              <span className="size-1.5 rounded-full bg-leaf" /> {v.name}
-                            </span>
-                            <span className="font-black text-forest dark:text-cream">₹{v.price.toLocaleString("en-IN")}</span>
-                          </div>
+                          <Link
+                            key={v.id}
+                            href={`/enroll?course=${course.slug}&plan=${v.id}`}
+                            className={`group/plan relative flex items-center justify-between p-3 rounded-2xl border-2 transition-all block ${
+                              v.isBestValue
+                                ? "border-leaf bg-leaf/5 shadow-sm hover:border-forest dark:border-emerald-500/50 dark:bg-emerald-950/20"
+                                : "border-forest/10 bg-white/70 hover:border-forest/30 dark:border-white/10 dark:bg-white/5"
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-black text-forest dark:text-cream text-xs leading-snug">
+                                  {v.name}
+                                </span>
+                                {v.isBestValue && (
+                                  <span className="rounded-full bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 shadow-sm">
+                                    ⭐ BEST VALUE
+                                  </span>
+                                )}
+                                {v.savingsLabel && (
+                                  <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[9px] font-black px-2 py-0.5 border border-emerald-300 dark:border-emerald-700">
+                                    🔥 {v.savingsLabel}
+                                  </span>
+                                )}
+                              </div>
+                              {v.monthlyRate ? (
+                                <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
+                                  Only ₹{v.monthlyRate}/month
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-sm font-black text-leaf">
+                                ₹{v.price.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </Link>
                         ))}
                       </div>
                     </div>

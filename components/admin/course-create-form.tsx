@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   CheckCircle2, Image as ImageIcon, IndianRupee,
-  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff, FileText, Clock
+  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff, FileText, Clock, Sparkles
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import type { Course } from "@/lib/types";
 import { notifyAllUsersNewCourse } from "@/app/actions/notifications";
+import { computeVariantEnhancements } from "@/lib/course-variants";
 
 /* ─────────────────── helpers ─────────────────── */
 function slugify(v: string) {
@@ -596,6 +597,16 @@ function CourseModal({
   const previewThumb = fields.thumbnailUrl.trim()
     || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null);
 
+  const liveEnhancedVariants = useMemo(() => {
+    const list = fields.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      price: Number(v.price) || 0,
+      isDefault: v.isDefault,
+    }));
+    return computeVariantEnhancements(list);
+  }, [fields.variants]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -832,86 +843,122 @@ function CourseModal({
 
               {/* Variant Rows */}
               <div className="space-y-2 pt-1">
-                {fields.variants.map((v, idx) => (
-                  <div
-                    key={v.id || idx}
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition ${
-                      v.isDefault
-                        ? "border-leaf/50 bg-leaf/5 shadow-sm"
-                        : "border-forest/10 bg-white dark:bg-white/5 dark:border-white/10"
-                    }`}
-                  >
-                    {/* Plan Name */}
-                    <div className="flex-1 min-w-0">
-                      <input
-                        value={v.name}
-                        onChange={(e) => {
-                          const next = [...fields.variants];
-                          next[idx].name = e.target.value;
-                          setters.setVariants(next);
-                        }}
-                        placeholder="e.g. 6 Months Access"
-                        className="w-full bg-transparent text-xs font-bold text-forest dark:text-cream outline-none placeholder:text-ink/30"
-                      />
-                    </div>
-
-                    {/* Price */}
-                    <div className="flex items-center gap-1 bg-linen dark:bg-white/10 px-2.5 py-1 rounded-lg border border-forest/10 dark:border-white/10 w-28 shrink-0">
-                      <span className="text-xs font-black text-leaf">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={v.price}
-                        onChange={(e) => {
-                          const next = [...fields.variants];
-                          next[idx].price = e.target.value;
-                          setters.setVariants(next);
-                        }}
-                        placeholder="199"
-                        className="w-full bg-transparent text-xs font-bold text-forest dark:text-cream outline-none"
-                      />
-                    </div>
-
-                    {/* Default Radio */}
-                    <button
-                      type="button"
-                      title="Mark as default plan"
-                      onClick={() => {
-                        const next = fields.variants.map((item, i) => ({
-                          ...item,
-                          isDefault: i === idx,
-                        }));
-                        setters.setVariants(next);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition shrink-0 ${
+                {fields.variants.map((v, idx) => {
+                  const enhanced = liveEnhancedVariants[idx];
+                  return (
+                    <div
+                      key={v.id || idx}
+                      className={`flex flex-wrap sm:flex-nowrap items-center gap-2 p-2.5 rounded-xl border transition ${
                         v.isDefault
-                          ? "bg-leaf text-white"
-                          : "bg-forest/5 text-ink/50 hover:bg-forest/10 dark:bg-white/10 dark:text-cream/60"
+                          ? "border-leaf/50 bg-leaf/5 shadow-sm"
+                          : "border-forest/10 bg-white dark:bg-white/5 dark:border-white/10"
                       }`}
                     >
-                      {v.isDefault ? "★ Default" : "Make Default"}
-                    </button>
+                      {/* Plan Name */}
+                      <div className="flex-1 min-w-[140px] flex items-center gap-1.5 flex-wrap">
+                        <input
+                          value={v.name}
+                          onChange={(e) => {
+                            const next = [...fields.variants];
+                            next[idx].name = e.target.value;
+                            setters.setVariants(next);
+                          }}
+                          placeholder="e.g. 6 Months Access"
+                          className="w-full bg-transparent text-xs font-bold text-forest dark:text-cream outline-none placeholder:text-ink/30"
+                        />
+                        {/* Live Savings / Best Value indicator pill */}
+                        <div className="flex items-center gap-1">
+                          {enhanced?.isBestValue && (
+                            <span className="rounded bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 shadow-sm shrink-0">
+                              Best Value
+                            </span>
+                          )}
+                          {enhanced?.savingsLabel && (
+                            <span className="rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.5 border border-emerald-300 dark:border-emerald-700 shrink-0">
+                              {enhanced.savingsLabel}
+                            </span>
+                          )}
+                          {enhanced?.monthlyRate ? (
+                            <span className="text-[9px] font-semibold text-ink/40 dark:text-cream/40 shrink-0">
+                              (₹{enhanced.monthlyRate}/mo)
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
 
-                    {/* Delete Button */}
-                    {fields.variants.length > 1 && (
+                      {/* Price */}
+                      <div className="flex items-center gap-1 bg-linen dark:bg-white/10 px-2.5 py-1 rounded-lg border border-forest/10 dark:border-white/10 w-28 shrink-0">
+                        <span className="text-xs font-black text-leaf">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={v.price}
+                          onChange={(e) => {
+                            const next = [...fields.variants];
+                            next[idx].price = e.target.value;
+                            setters.setVariants(next);
+                          }}
+                          placeholder="199"
+                          className="w-full bg-transparent text-xs font-bold text-forest dark:text-cream outline-none"
+                        />
+                      </div>
+
+                      {/* Default Radio */}
                       <button
                         type="button"
-                        title="Remove variant"
+                        title="Mark as default plan"
                         onClick={() => {
-                          const next = fields.variants.filter((_, i) => i !== idx);
-                          if (v.isDefault && next.length > 0) {
-                            next[0].isDefault = true;
-                          }
+                          const next = fields.variants.map((item, i) => ({
+                            ...item,
+                            isDefault: i === idx,
+                          }));
                           setters.setVariants(next);
                         }}
-                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition shrink-0"
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition shrink-0 ${
+                          v.isDefault
+                            ? "bg-leaf text-white"
+                            : "bg-forest/5 text-ink/50 hover:bg-forest/10 dark:bg-white/10 dark:text-cream/60"
+                        }`}
                       >
-                        <Trash2 size={13} />
+                        {v.isDefault ? "★ Default" : "Make Default"}
                       </button>
-                    )}
-                  </div>
-                ))}
+
+                      {/* Delete Button */}
+                      {fields.variants.length > 1 && (
+                        <button
+                          type="button"
+                          title="Remove variant"
+                          onClick={() => {
+                            const next = fields.variants.filter((_, i) => i !== idx);
+                            if (v.isDefault && next.length > 0) {
+                              next[0].isDefault = true;
+                            }
+                            setters.setVariants(next);
+                          }}
+                          className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition shrink-0"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Smart Pricing Live Feedback Banner */}
+              {liveEnhancedVariants.some((v) => v.savingsLabel || v.isBestValue) && (
+                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                  <Sparkles size={14} className="shrink-0 text-emerald-600" />
+                  <span>
+                    <strong>Smart Upsell Active:</strong> Students will see badges like{" "}
+                    {liveEnhancedVariants
+                      .filter((v) => v.savingsLabel)
+                      .map((v) => `"${v.name} (${v.savingsLabel})"`)
+                      .join(", ")}{" "}
+                    encouraging them to buy longer access.
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-2xl border border-leaf/20 bg-leaf/10 p-3.5 text-xs text-leaf font-bold flex items-center gap-2">

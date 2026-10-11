@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { parseDurationVariants } from "@/lib/course-variants";
 import type { AdminCourse } from "@/app/admin/courses/page";
 import { EditCourseModal } from "@/components/admin/course-create-form";
 import {
@@ -410,15 +411,25 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                     </div>
                   </div>
 
-                  {/* Configured Duration Plan Badges */}
+                  {/* Configured Duration Plan Badges with Smart Pricing Badges */}
                   {Array.isArray(course.duration_variants) && course.duration_variants.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {course.duration_variants.map((v: any, idx: number) => (
+                      {parseDurationVariants(course.duration_variants, course.price_inr).map((v) => (
                         <span
-                          key={v.id || idx}
+                          key={v.id}
                           className="inline-flex items-center gap-1 rounded-lg bg-forest/5 dark:bg-white/10 border border-forest/10 dark:border-white/10 px-2 py-0.5 text-[10px] font-bold text-ink/70 dark:text-cream/70"
                         >
-                          <span className="text-leaf">●</span> {v.name}: ₹{Number(v.price_inr ?? v.price ?? course.price_inr).toLocaleString("en-IN")}
+                          <span className="text-leaf">●</span> {v.name}: ₹{v.price.toLocaleString("en-IN")}
+                          {v.savingsLabel && (
+                            <span className="text-emerald-700 dark:text-emerald-400 font-extrabold text-[9px]">
+                              ({v.savingsLabel})
+                            </span>
+                          )}
+                          {v.isBestValue && (
+                            <span className="text-amber-500 font-black text-[9px]">
+                              ★ Best Value
+                            </span>
+                          )}
                         </span>
                       ))}
                     </div>

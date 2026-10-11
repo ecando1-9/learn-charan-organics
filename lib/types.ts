@@ -22,6 +22,11 @@ export type CourseDurationVariant = {
   name: string;
   price: number;
   isDefault?: boolean;
+  savingsPercent?: number;
+  savingsLabel?: string;
+  badge?: string;
+  monthlyRate?: number;
+  isBestValue?: boolean;
 };
 
 export type Course = {

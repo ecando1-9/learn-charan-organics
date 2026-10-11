@@ -46,6 +46,7 @@ export default function EnrollPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const preselect = searchParams.get("course");
+  const preselectPlan = searchParams.get("plan");
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -117,9 +118,16 @@ export default function EnrollPage() {
         setSelected(new Set([paid[0].id]));
       }
 
-      // Initialize default duration variant for each paid course
+      // Initialize default duration variant for each paid course (respecting plan query param if present)
       const initialDurations: Record<string, string> = {};
       paid.forEach((c) => {
+        if (preselect && c.slug === preselect && preselectPlan) {
+          const matched = c.variants.find((v) => v.id === preselectPlan);
+          if (matched) {
+            initialDurations[c.id] = matched.id;
+            return;
+          }
+        }
         const def = c.variants.find((v) => v.isDefault) || c.variants[0];
         if (def) {
           initialDurations[c.id] = def.id;
@@ -131,7 +139,7 @@ export default function EnrollPage() {
     }
 
     loadCourses();
-  }, [preselect, router]);
+  }, [preselect, preselectPlan, router]);
 
   // Variant helper based on selected plan
   function getCourseActiveVariant(c: Course, variantId?: string): CourseDurationVariant {
@@ -476,11 +484,18 @@ export default function EnrollPage() {
 
                             {/* Access Duration Variants Selector (Visible when selected) */}
                             {isChecked && course.variants && course.variants.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-forest/10 dark:border-white/10 flex flex-wrap items-center gap-2">
-                                <span className="text-[11px] font-bold text-ink/60 dark:text-cream/60 flex items-center gap-1">
-                                  <Clock size={12} /> Access Plan:
-                                </span>
-                                <div className="flex flex-wrap gap-1.5">
+                              <div className="mt-3 pt-3 border-t border-forest/10 dark:border-white/10 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-bold text-ink/70 dark:text-cream/70 flex items-center gap-1.5">
+                                    <Clock size={12} className="text-leaf" /> Choose Access Duration:
+                                  </span>
+                                  {course.variants.some((v) => v.savingsLabel) && (
+                                    <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                                      ✨ Longer access saves more!
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-2">
                                   {course.variants.map((v) => {
                                     const isCurrent = activeVariant.id === v.id;
                                     return (
@@ -488,13 +503,53 @@ export default function EnrollPage() {
                                         key={v.id}
                                         type="button"
                                         onClick={() => toggleDuration(course.id, v.id)}
-                                        className={`px-3 py-1 text-xs font-bold rounded-xl transition border ${
+                                        className={`relative flex items-center justify-between p-2.5 sm:p-3 rounded-2xl text-left transition-all border-2 ${
                                           isCurrent
-                                            ? "bg-forest text-white border-forest shadow-sm dark:bg-emerald-600 dark:border-emerald-500"
-                                            : "bg-forest/5 text-ink/75 border-transparent hover:bg-forest/10 dark:bg-white/10 dark:text-cream/75"
+                                            ? "border-emerald-600 bg-emerald-50/60 shadow-sm dark:border-emerald-500 dark:bg-emerald-950/30"
+                                            : "border-forest/10 bg-white/70 hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
                                         }`}
                                       >
-                                        {v.name} (₹{v.price.toLocaleString("en-IN")})
+                                        {/* Left: Radio & Plan Name & Badges */}
+                                        <div className="flex items-center gap-2 min-w-0 pr-1">
+                                          <div
+                                            className={`size-4 rounded-full border-2 grid place-items-center shrink-0 transition ${
+                                              isCurrent
+                                                ? "border-emerald-600 bg-emerald-600 dark:border-emerald-500"
+                                                : "border-forest/30 dark:border-cream/30"
+                                            }`}
+                                          >
+                                            {isCurrent && <div className="size-1.5 rounded-full bg-white" />}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <p className="text-xs font-black text-forest dark:text-cream leading-tight">
+                                                {v.name}
+                                              </p>
+                                              {v.isBestValue && (
+                                                <span className="rounded-full bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.2 shadow-sm">
+                                                  BEST VALUE
+                                                </span>
+                                              )}
+                                              {v.savingsLabel && (
+                                                <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.2 border border-emerald-300 dark:border-emerald-700">
+                                                  {v.savingsLabel}
+                                                </span>
+                                              )}
+                                            </div>
+                                            {v.monthlyRate ? (
+                                              <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
+                                                ₹{v.monthlyRate}/mo equivalent
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                        </div>
+
+                                        {/* Right: Price */}
+                                        <div className="text-right shrink-0">
+                                          <span className="text-xs sm:text-sm font-black text-forest dark:text-cream">
+                                            ₹{v.price.toLocaleString("en-IN")}
+                                          </span>
+                                        </div>
                                       </button>
                                     );
                                   })}
