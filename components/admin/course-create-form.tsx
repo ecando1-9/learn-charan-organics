@@ -3,13 +3,31 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   CheckCircle2, Image as ImageIcon, IndianRupee,
-  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff, FileText, Clock, Sparkles
+  Link2, Loader2, Pencil, Plus, Trash2, Upload, X, Youtube, Eye, EyeOff, FileText, Clock, Sparkles, ExternalLink
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import type { Course } from "@/lib/types";
 import { notifyAllUsersNewCourse } from "@/app/actions/notifications";
 import { computeVariantEnhancements } from "@/lib/course-variants";
+import { parsePdfResources, CoursePdfResource } from "@/lib/course-pdfs";
+
+export type PdfMaterialItem = {
+  id: string;
+  title: string;
+  url: string;
+  description?: string;
+};
+
+export function parseInitialPdfs(rawPdfResources: any, fallbackPdfUrl?: string | null, courseTitle?: string): PdfMaterialItem[] {
+  const parsed = parsePdfResources(rawPdfResources, fallbackPdfUrl, courseTitle);
+  return parsed.map((p, idx) => ({
+    id: p.id || `pdf_${idx + 1}`,
+    title: p.title || `Formulation Material ${idx + 1}`,
+    url: p.url,
+    description: p.description || "",
+  }));
+}
 
 /* ─────────────────── helpers ─────────────────── */
 function slugify(v: string) {
@@ -60,6 +78,7 @@ export function AddCourseModal() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [bunnyVideoId, setBunnyVideoId] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
+  const [pdfMaterials, setPdfMaterials] = useState<PdfMaterialItem[]>([]);
   const [isFree, setIsFree] = useState(false);
   const [price, setPrice] = useState("199");
   const [price1Year, setPrice1Year] = useState("");
@@ -72,7 +91,7 @@ export function AddCourseModal() {
   const [loading, setLoading] = useState(false);
 
   function reset() {
-    setTitle(""); setYoutubeUrl(""); setBunnyVideoId(""); setPdfUrl("");
+    setTitle(""); setYoutubeUrl(""); setBunnyVideoId(""); setPdfUrl(""); setPdfMaterials([]);
     setIsFree(false); setPrice("199"); setPrice1Year(""); setVariants(DEFAULT_VARIANTS); setPublished(true);
     setThumbnailUrl(""); setDescription(""); setSortOrder("1"); setMessage(null);
   }
@@ -102,6 +121,9 @@ export function AddCourseModal() {
           is_default: Boolean(v.isDefault),
         }));
 
+    const validPdfs = pdfMaterials.filter((p) => p.url && p.url.trim().length > 0);
+    const primaryPdfUrl = validPdfs[0]?.url || (pdfUrl.trim() || null);
+
     let categoryId: string | null = null;
     try {
       const { data: category } = await supabase
@@ -120,7 +142,8 @@ export function AddCourseModal() {
       description,
       thumbnail_url: finalThumb,
       youtube_url: youtubeUrl || null,
-      pdf_url: pdfUrl || null,
+      pdf_url: primaryPdfUrl,
+      pdf_resources: validPdfs,
       price_inr: finalPrice,
       price_1year_inr: final1YearPrice,
       duration_variants: variantsPayload,
@@ -131,12 +154,21 @@ export function AddCourseModal() {
     let course: any = null;
     let courseErr: any = null;
 
-    // Try upsert with duration_variants, price_1year_inr, and is_free
+    // Try upsert with duration_variants, pdf_resources, price_1year_inr, and is_free
     let res = await supabase
       .from("lms_courses")
       .upsert({ ...basePayload, is_free: isFree }, { onConflict: "slug" })
       .select("id")
       .single();
+
+    if (res.error && res.error.message.includes("pdf_resources")) {
+      delete basePayload.pdf_resources;
+      res = await supabase
+        .from("lms_courses")
+        .upsert({ ...basePayload, is_free: isFree }, { onConflict: "slug" })
+        .select("id")
+        .single();
+    }
 
     if (res.error && res.error.message.includes("duration_variants")) {
       delete basePayload.duration_variants;
@@ -199,10 +231,22 @@ export function AddCourseModal() {
       .insert(videoPayload);
     if (vidErr) { setMessage({ type: "error", text: vidErr.message }); setLoading(false); return; }
 
-    if (pdfUrl) {
+    // Insert all PDFs into lms_pdf_resources table
+    if (validPdfs.length > 0) {
+      for (const pdfItem of validPdfs) {
+        await supabase.from("lms_pdf_resources").insert({
+          lesson_id: lesson.id,
+          course_id: course.id,
+          title: pdfItem.title || `${title} notes`,
+          storage_path: pdfItem.url,
+        });
+      }
+    } else if (primaryPdfUrl) {
       await supabase.from("lms_pdf_resources").insert({
-        lesson_id: lesson.id, course_id: course.id,
-        title: `${title} notes`, storage_path: pdfUrl,
+        lesson_id: lesson.id,
+        course_id: course.id,
+        title: `${title} notes`,
+        storage_path: primaryPdfUrl,
       });
     }
 
@@ -233,9 +277,9 @@ export function AddCourseModal() {
         <CourseModal
           title="Add New Course"
           subtitle="Fill in the details — it will appear in the course catalog."
-          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, pdfMaterials, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
           setters={{
-            setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
+            setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl, setPdfMaterials,
             setIsFree: (val: boolean) => {
               setIsFree(val);
               if (val) { setPrice("0"); setPrice1Year(""); }
@@ -283,6 +327,7 @@ type EditableCourse = {
   youtubeUrl: string;
   bunnyVideoId?: string;
   pdfUrl: string;
+  pdfResources?: any;
   price: number;
   price1Year?: number;
   durationVariants?: any;
@@ -298,6 +343,9 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
   const [youtubeUrl, setYoutubeUrl] = useState(course.youtubeUrl);
   const [bunnyVideoId, setBunnyVideoId] = useState(course.bunnyVideoId ?? "");
   const [pdfUrl, setPdfUrl] = useState(course.pdfUrl);
+  const [pdfMaterials, setPdfMaterials] = useState<PdfMaterialItem[]>(() =>
+    parseInitialPdfs(course.pdfResources, course.pdfUrl, course.title)
+  );
   const [isFree, setIsFree] = useState(course.price === 0);
   const [price, setPrice] = useState(String(course.price));
   const [price1Year, setPrice1Year] = useState(course.price1Year ? String(course.price1Year) : "");
@@ -319,6 +367,7 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       setYoutubeUrl(course.youtubeUrl);
       setBunnyVideoId(course.bunnyVideoId ?? "");
       setPdfUrl(course.pdfUrl);
+      setPdfMaterials(parseInitialPdfs(course.pdfResources, course.pdfUrl, course.title));
       setIsFree(course.price === 0);
       setPrice(String(course.price));
       setPrice1Year(course.price1Year ? String(course.price1Year) : "");
@@ -356,12 +405,16 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
           is_default: Boolean(v.isDefault),
         }));
 
+    const validPdfs = pdfMaterials.filter((p) => p.url && p.url.trim().length > 0);
+    const primaryPdfUrl = validPdfs[0]?.url || (pdfUrl.trim() || null);
+
     const baseUpdate: any = {
       title,
       description,
       thumbnail_url: finalThumb,
       youtube_url: youtubeUrl || null,
-      pdf_url: pdfUrl || null,
+      pdf_url: primaryPdfUrl,
+      pdf_resources: validPdfs,
       price_inr: finalPrice,
       price_1year_inr: final1YearPrice,
       duration_variants: variantsPayload,
@@ -374,6 +427,15 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       .from("lms_courses")
       .update({ ...baseUpdate, is_free: isFree })
       .eq("id", course.id);
+
+    if (courseErr && courseErr.message.includes("pdf_resources")) {
+      delete baseUpdate.pdf_resources;
+      const res = await supabase
+        .from("lms_courses")
+        .update({ ...baseUpdate, is_free: isFree })
+        .eq("id", course.id);
+      courseErr = res.error;
+    }
 
     if (courseErr && courseErr.message.includes("duration_variants")) {
       delete baseUpdate.duration_variants;
@@ -466,10 +528,17 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
       }
     }
 
-    // Upsert PDF resource
-    if (pdfUrl && lessonId) {
-      await supabase.from("lms_pdf_resources")
-        .upsert({ course_id: course.id, lesson_id: lessonId, title: `${title} notes`, storage_path: pdfUrl }, { onConflict: "course_id" });
+    // Upsert PDF resources to lms_pdf_resources table
+    if (lessonId) {
+      if (validPdfs.length > 0) {
+        for (const pdfItem of validPdfs) {
+          await supabase.from("lms_pdf_resources")
+            .upsert({ course_id: course.id, lesson_id: lessonId, title: pdfItem.title || `${title} notes`, storage_path: pdfItem.url }, { onConflict: "course_id" });
+        }
+      } else if (primaryPdfUrl) {
+        await supabase.from("lms_pdf_resources")
+          .upsert({ course_id: course.id, lesson_id: lessonId, title: `${title} notes`, storage_path: primaryPdfUrl }, { onConflict: "course_id" });
+      }
     }
 
     setLoading(false);
@@ -500,9 +569,9 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
         <CourseModal
           title="Edit Course"
           subtitle="Update the course details below. Changes apply immediately."
-          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
+          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, pdfMaterials, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
           setters={{
-            setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl,
+            setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl, setPdfMaterials,
             setIsFree: (val: boolean) => {
               setIsFree(val);
               if (val) { setPrice("0"); setPrice1Year(""); }
@@ -541,6 +610,7 @@ function CourseModal({
   subtitle: string;
   fields: {
     title: string; youtubeUrl: string; bunnyVideoId: string; pdfUrl: string;
+    pdfMaterials: PdfMaterialItem[];
     isFree: boolean; price: string; price1Year: string; variants: DurationVariantItem[]; published: boolean; thumbnailUrl: string;
     description: string; sortOrder: string;
   };
@@ -549,6 +619,7 @@ function CourseModal({
     setYoutubeUrl: (v: string) => void;
     setBunnyVideoId: (v: string) => void;
     setPdfUrl: (v: string) => void;
+    setPdfMaterials: (v: PdfMaterialItem[]) => void;
     setIsFree: (v: boolean) => void;
     setPrice: (v: string) => void;
     setPrice1Year: (v: string) => void;
@@ -569,27 +640,75 @@ function CourseModal({
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setUploadError("Please select a valid PDF document.");
-      return;
-    }
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setUploadingPdf(true);
     setUploadError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/community/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to upload PDF");
+      const newItems: PdfMaterialItem[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+          continue;
+        }
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/community/upload", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          throw new Error(data.error || `Failed to upload ${file.name}`);
+        }
+        const cleanTitle = file.name
+          .replace(/\.pdf$/i, "")
+          .replace(/[-_]/g, " ")
+          .trim();
+        newItems.push({
+          id: `pdf_${Date.now()}_${i}`,
+          title: cleanTitle ? (cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1)) : "Course Formulation Guide",
+          url: data.url,
+          description: "",
+        });
       }
-      setters.setPdfUrl(data.url);
+      if (newItems.length === 0) {
+        throw new Error("No valid PDF files were selected.");
+      }
+      const updated = [...fields.pdfMaterials, ...newItems];
+      setters.setPdfMaterials(updated);
+      if (!fields.pdfUrl && updated.length > 0) {
+        setters.setPdfUrl(updated[0].url);
+      }
     } catch (err: any) {
       setUploadError(err.message || "Failed to upload PDF file");
     } finally {
       setUploadingPdf(false);
+      e.target.value = "";
+    }
+  }
+
+  function addEmptyPdfItem(presetTitle = "") {
+    const next: PdfMaterialItem[] = [
+      ...fields.pdfMaterials,
+      {
+        id: `pdf_${Date.now()}`,
+        title: presetTitle || `Material #${fields.pdfMaterials.length + 1}`,
+        url: "",
+        description: "",
+      },
+    ];
+    setters.setPdfMaterials(next);
+  }
+
+  function removePdfItem(index: number) {
+    const next = fields.pdfMaterials.filter((_, idx) => idx !== index);
+    setters.setPdfMaterials(next);
+    setters.setPdfUrl(next[0]?.url || "");
+  }
+
+  function updatePdfItem(index: number, patch: Partial<PdfMaterialItem>) {
+    const next = fields.pdfMaterials.map((item, idx) => (idx === index ? { ...item, ...patch } : item));
+    setters.setPdfMaterials(next);
+    if (patch.url && index === 0) {
+      setters.setPdfUrl(patch.url);
     }
   }
 
@@ -738,54 +857,149 @@ function CourseModal({
             </div>
           </Field>
 
-          {/* PDF Notes Upload & URL */}
-          <Field
-            label="Formulation Notes / PDF Book (optional)"
-            hint="Upload your course PDF or paste a link. Only enrolled students can download."
-          >
-            <div className="space-y-2">
-              <div className={wrapCls}>
-                <FileText size={17} className="shrink-0 text-leaf" />
-                <input
-                  value={fields.pdfUrl}
-                  onChange={(e) => setters.setPdfUrl(e.target.value)}
-                  placeholder="https://... or click Upload PDF below"
-                  className={inputCls}
-                />
+          {/* Multiple PDF Course Materials Manager */}
+          <div className="rounded-2xl border border-forest/15 dark:border-white/15 bg-linen/50 dark:bg-white/5 p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+              <div>
+                <label className="text-xs font-bold text-forest dark:text-cream uppercase tracking-wide flex items-center gap-1.5">
+                  <FileText size={14} className="text-leaf" />
+                  Course PDF Materials & Guides ({fields.pdfMaterials.length})
+                </label>
+                <p className="text-[11px] text-ink/55 dark:text-cream/55">
+                  Attach multiple formulation recipe sheets, ingredient source lists, or safety guides. Only enrolled students can download them.
+                </p>
               </div>
-
-              <div className="flex flex-wrap items-center gap-3 pt-1">
+              <div className="flex items-center gap-2">
                 <input
                   type="file"
-                  id="pdf-upload-input"
+                  id="multi-pdf-upload-input"
                   accept="application/pdf,.pdf"
+                  multiple
                   className="hidden"
                   onChange={handlePdfUpload}
                   disabled={uploadingPdf}
                 />
                 <label
-                  htmlFor="pdf-upload-input"
+                  htmlFor="multi-pdf-upload-input"
                   className={`inline-flex items-center gap-1.5 rounded-xl border border-forest/15 dark:border-white/15 px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                     uploadingPdf
                       ? "bg-forest/10 text-forest cursor-wait"
-                      : "bg-white dark:bg-white/10 text-forest dark:text-cream hover:bg-forest/5"
+                      : "bg-white dark:bg-white/10 text-forest dark:text-cream hover:bg-forest/5 shadow-xs"
                   }`}
                 >
                   {uploadingPdf ? <Loader2 size={13} className="animate-spin text-leaf" /> : <Upload size={13} className="text-leaf" />}
-                  {uploadingPdf ? "Uploading PDF..." : "Upload PDF File"}
+                  {uploadingPdf ? "Uploading..." : "Upload PDF(s)"}
                 </label>
-
-                {fields.pdfUrl && (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-leaf truncate max-w-[220px]">
-                    <CheckCircle2 size={13} className="shrink-0" /> PDF Linked
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={() => addEmptyPdfItem()}
+                  className="inline-flex items-center gap-1 rounded-xl bg-forest/10 hover:bg-forest/15 text-forest dark:bg-white/10 dark:text-cream px-3 py-1.5 text-xs font-bold transition"
+                >
+                  <Plus size={13} /> Add Link
+                </button>
               </div>
-              {uploadError && (
-                <p className="text-xs font-semibold text-red-600 dark:text-red-400">{uploadError}</p>
-              )}
             </div>
-          </Field>
+
+            {uploadError && (
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 p-2 rounded-xl border border-red-200 dark:border-red-900/40">
+                {uploadError}
+              </p>
+            )}
+
+            {/* Quick Formulation Presets */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] font-bold text-ink/40 dark:text-cream/40 uppercase">Quick Presets:</span>
+              {[
+                "Formulation Recipe Sheet",
+                "Raw Material Sourcing List",
+                "Safety & INCI Specs",
+                "Batch Quality Checklist",
+              ].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => addEmptyPdfItem(preset)}
+                  className="rounded-lg border border-forest/15 bg-white dark:bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-forest dark:text-cream hover:border-leaf/50 hover:text-leaf transition"
+                >
+                  + {preset}
+                </button>
+              ))}
+            </div>
+
+            {/* PDF List */}
+            {fields.pdfMaterials.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-forest/20 dark:border-white/20 p-4 text-center">
+                <FileText size={22} className="mx-auto text-ink/30 dark:text-cream/30 mb-1" />
+                <p className="text-xs font-semibold text-ink/60 dark:text-cream/60">No PDF documents attached yet.</p>
+                <p className="text-[11px] text-ink/40 dark:text-cream/40 mt-0.5">
+                  Click <b>Upload PDF(s)</b> to upload files or <b>Add Link</b> to link external document URLs.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 pt-1">
+                {fields.pdfMaterials.map((item, idx) => (
+                  <div
+                    key={item.id || idx}
+                    className="p-3 rounded-xl border border-forest/10 bg-white dark:bg-white/5 dark:border-white/10 space-y-2 shadow-xs transition hover:border-forest/20"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="grid size-5 place-items-center rounded-full bg-forest/10 dark:bg-white/10 text-[10px] font-black text-forest dark:text-cream shrink-0">
+                          {idx + 1}
+                        </span>
+                        <input
+                          value={item.title}
+                          onChange={(e) => updatePdfItem(idx, { title: e.target.value })}
+                          placeholder="Document Title (e.g. Recipe Notes)"
+                          className="flex-1 bg-transparent text-xs font-bold text-forest dark:text-cream outline-none placeholder:text-ink/30"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {item.url && (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-leaf hover:underline px-2 py-1 rounded bg-leaf/10"
+                            title="Preview PDF"
+                          >
+                            <ExternalLink size={12} /> Test
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removePdfItem(idx)}
+                          className="text-ink/40 hover:text-red-600 transition p-1"
+                          title="Remove PDF"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* PDF URL Input */}
+                    <div className="flex items-center gap-2 rounded-lg bg-linen/60 dark:bg-white/5 px-2.5 py-1.5 border border-forest/10 dark:border-white/10">
+                      <Link2 size={13} className="shrink-0 text-ink/40 dark:text-cream/40" />
+                      <input
+                        value={item.url}
+                        onChange={(e) => updatePdfItem(idx, { url: e.target.value })}
+                        placeholder="PDF File URL (https://... or uploaded file)"
+                        className="w-full bg-transparent text-[11px] font-mono outline-none text-ink/80 dark:text-cream/80 placeholder:text-ink/30"
+                      />
+                    </div>
+
+                    {/* Optional Description / Subtitle */}
+                    <input
+                      value={item.description || ""}
+                      onChange={(e) => updatePdfItem(idx, { description: e.target.value })}
+                      placeholder="Optional notes for students (e.g. Includes batch formulation percentages & suppliers)"
+                      className="w-full bg-transparent text-[11px] text-ink/60 dark:text-cream/60 outline-none placeholder:text-ink/30 italic"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Dynamic Access Duration & Pricing Variants */}
           {!fields.isFree ? (

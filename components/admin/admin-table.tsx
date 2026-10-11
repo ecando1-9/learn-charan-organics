@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { parseDurationVariants } from "@/lib/course-variants";
+import { parsePdfResources } from "@/lib/course-pdfs";
 import type { AdminCourse } from "@/app/admin/courses/page";
 import { EditCourseModal } from "@/components/admin/course-create-form";
 import {
@@ -407,7 +408,14 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                       ) : course.youtube_url ? (
                         <span>📹 YouTube</span>
                       ) : null}
-                      {course.pdf_url && <span>📄 PDF</span>}
+                      {(() => {
+                        const pdfCount = parsePdfResources(course.pdf_resources, course.pdf_url).length;
+                        return pdfCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-forest/5 dark:bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-forest dark:text-cream">
+                            📄 {pdfCount} {pdfCount === 1 ? "PDF" : "PDFs"}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
 
@@ -480,6 +488,7 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
             youtubeUrl: editingCourse.youtube_url ?? "",
             bunnyVideoId: editingCourse.bunny_video_id ?? "",
             pdfUrl: editingCourse.pdf_url ?? "",
+            pdfResources: editingCourse.pdf_resources,
             price: editingCourse.price_inr,
             price1Year: editingCourse.price_1year_inr ? Number(editingCourse.price_1year_inr) : undefined,
             durationVariants: editingCourse.duration_variants,

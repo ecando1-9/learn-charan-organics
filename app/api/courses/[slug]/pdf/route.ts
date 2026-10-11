@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parsePdfResources, CoursePdfResource } from "@/lib/course-pdfs";
 
 export const dynamic = "force-dynamic";
 
@@ -25,30 +26,57 @@ export async function GET(
     const admin = createAdminClient();
 
     // 1. Fetch course details
-    const { data: course, error: courseError } = await admin
+    let course: any = null;
+    const { data: cData, error: courseError } = await admin
       .from("lms_courses")
-      .select("id, title, slug, is_free, price_inr, pdf_url")
+      .select("id, title, slug, is_free, price_inr, pdf_url, pdf_resources")
       .eq("slug", slug)
       .maybeSingle();
 
-    if (courseError || !course) {
+    if (courseError && courseError.message.includes("pdf_resources")) {
+      // Fallback if pdf_resources column does not exist
+      const { data: fallbackCourse } = await admin
+        .from("lms_courses")
+        .select("id, title, slug, is_free, price_inr, pdf_url")
+        .eq("slug", slug)
+        .maybeSingle();
+      course = fallbackCourse;
+    } else {
+      course = cData;
+    }
+
+    if (!course) {
       return NextResponse.json({ error: "Course not found." }, { status: 404 });
     }
 
-    // 2. Also check lms_pdf_resources in case pdf_url is stored there
-    let pdfUrl = course.pdf_url;
-    if (!pdfUrl) {
-      const { data: resource } = await admin
-        .from("lms_pdf_resources")
-        .select("storage_path")
-        .eq("course_id", course.id)
-        .maybeSingle();
-      if (resource?.storage_path) {
-        pdfUrl = resource.storage_path;
-      }
+    // 2. Query lms_pdf_resources as well
+    const { data: extraResources } = await admin
+      .from("lms_pdf_resources")
+      .select("id, title, storage_path")
+      .eq("course_id", course.id);
+
+    // Combine all PDF resources
+    const allResources: CoursePdfResource[] = parsePdfResources(
+      course.pdf_resources,
+      course.pdf_url,
+      course.title
+    );
+
+    if (extraResources && extraResources.length > 0) {
+      const seen = new Set(allResources.map((r) => r.url));
+      extraResources.forEach((res: any, idx: number) => {
+        if (res.storage_path && !seen.has(res.storage_path)) {
+          allResources.push({
+            id: String(res.id || `pdf_res_${idx + 1}`),
+            title: res.title || `Formulation Note ${idx + 1}`,
+            url: res.storage_path,
+          });
+          seen.add(res.storage_path);
+        }
+      });
     }
 
-    if (!pdfUrl) {
+    if (allResources.length === 0) {
       return NextResponse.json(
         { error: "No formulation PDF handbook attached to this course yet." },
         { status: 404 }
@@ -90,7 +118,23 @@ export async function GET(
       }
     }
 
-    // 4. Authorized: redirect user to the PDF or stream
+    // 4. Resolve which PDF was requested
+    const requestedId = req.nextUrl.searchParams.get("id");
+    const requestedIndex = req.nextUrl.searchParams.get("index");
+
+    let targetPdf: CoursePdfResource = allResources[0];
+
+    if (requestedId) {
+      const found = allResources.find((r) => r.id === requestedId);
+      if (found) targetPdf = found;
+    } else if (requestedIndex !== null && !isNaN(Number(requestedIndex))) {
+      const idx = Number(requestedIndex);
+      if (idx >= 0 && idx < allResources.length) {
+        targetPdf = allResources[idx];
+      }
+    }
+
+    const pdfUrl = targetPdf.url;
     const wantsDownload = req.nextUrl.searchParams.get("download") === "true";
 
     // If Cloudinary and download requested, add fl_attachment flag

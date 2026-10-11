@@ -29,6 +29,14 @@ export type CourseDurationVariant = {
   isBestValue?: boolean;
 };
 
+export type CoursePdfResource = {
+  id: string;
+  title: string;
+  url: string;
+  description?: string;
+  size?: string;
+};
+
 export type Course = {
   id?: string;
   slug: string;
@@ -46,6 +54,7 @@ export type Course = {
   thumbnail: string;
   youtubeUrl?: string;
   pdfUrl?: string;
+  pdfResources?: CoursePdfResource[];
   description: string;
   outcomes: string[];
   materials: string[];

@@ -2,6 +2,8 @@ import { unstable_noStore as noStore } from "next/cache";
 import type { Course, CourseLevel, Lesson, Module } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 
+import { parsePdfResources } from "@/lib/course-pdfs";
+
 type DbCourse = {
   id: string;
   category_id: string | null;
@@ -11,6 +13,7 @@ type DbCourse = {
   thumbnail_url: string | null;
   youtube_url: string | null;
   pdf_url: string | null;
+  pdf_resources?: any;
   price_inr: number;
   price_1year_inr?: number | null;
   duration_variants?: any;
@@ -79,6 +82,8 @@ function buildCourse(course: DbCourse, categoryName: string, modules: Module[] =
   const isFree = course.is_free === true || Number(course.price_inr ?? 0) === 0;
   const basePrice = isFree ? 0 : Number(course.price_inr);
   const variants = isFree ? [] : parseDurationVariants(course.duration_variants, basePrice, course.price_1year_inr);
+  const pdfResources = parsePdfResources(course.pdf_resources, course.pdf_url, course.title);
+  const primaryPdfUrl = pdfResources[0]?.url || course.pdf_url || undefined;
 
   return {
     id: course.id,
@@ -96,7 +101,8 @@ function buildCourse(course: DbCourse, categoryName: string, modules: Module[] =
     durationVariants: variants,
     thumbnail: course.thumbnail_url || defaultThumbnail(course),
     youtubeUrl: course.youtube_url || undefined,
-    pdfUrl: course.pdf_url || undefined,
+    pdfUrl: primaryPdfUrl,
+    pdfResources: pdfResources.length > 0 ? pdfResources : undefined,
     description: course.description,
     outcomes: [
       `Understand the complete ${course.title.toLowerCase()} making process`,
@@ -246,5 +252,28 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
     ];
   }
 
-  return buildCourse(course, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title, modules);
+  // Query lms_pdf_resources for any PDFs associated with this course
+  const { data: dbPdfData } = await supabase
+    .from("lms_pdf_resources")
+    .select("id, title, storage_path")
+    .eq("course_id", course.id);
+
+  let mergedCourse = course;
+  if (dbPdfData && dbPdfData.length > 0) {
+    const existingPdfs = parsePdfResources(course.pdf_resources, course.pdf_url, course.title);
+    const seen = new Set(existingPdfs.map((x) => x.url));
+    dbPdfData.forEach((p: any, idx: number) => {
+      if (p.storage_path && !seen.has(p.storage_path)) {
+        existingPdfs.push({
+          id: String(p.id || `pdf_res_${idx + 1}`),
+          title: p.title || `Formulation Note ${idx + 1}`,
+          url: p.storage_path,
+        });
+        seen.add(p.storage_path);
+      }
+    });
+    mergedCourse = { ...course, pdf_resources: existingPdfs };
+  }
+
+  return buildCourse(mergedCourse, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title, modules);
 }

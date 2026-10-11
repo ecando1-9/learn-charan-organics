@@ -12,6 +12,7 @@ export type AdminCourse = {
   thumbnail_url: string | null;
   youtube_url: string | null;
   pdf_url: string | null;
+  pdf_resources?: any;
   price_inr: number;
   price_1year_inr?: number | null;
   duration_variants?: any;

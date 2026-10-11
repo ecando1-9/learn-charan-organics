@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, List, MessageCircle, PlayCircle, Lock, X, Loader2 } from "lucide-react";
+import { CheckCircle2, FileText, List, MessageCircle, PlayCircle, Lock, X, Loader2, Download } from "lucide-react";
 import type { Course, Lesson } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -14,8 +14,14 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
   const [student, setStudent] = useState({ name: "Student", email: "student" });
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [selectedPdfIndex, setSelectedPdfIndex] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [togglingCompletion, setTogglingCompletion] = useState(false);
+
+  const pdfResources = (course.pdfResources && course.pdfResources.length > 0)
+    ? course.pdfResources
+    : (course.pdfUrl ? [{ id: "pdf_1", title: `${course.title} Notes`, url: course.pdfUrl }] : []);
+  const activePdf = pdfResources[selectedPdfIndex] || pdfResources[0];
 
   const [videoSource, setVideoSource] = useState<{
     type: "cloudinary" | "youtube" | "bunny";
@@ -265,9 +271,16 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
               )}
               {isCompleted ? "Completed ✅" : "Mark complete"}
             </Button>
-            {course.pdfUrl && (
-              <Button onClick={() => setShowNotes(true)} variant="secondary" className="border-white/10 bg-white/10 text-white hover:bg-white/15 text-sm">
-                <FileText size={16} /> View notes (Protected)
+            {pdfResources.length > 0 && (
+              <Button
+                onClick={() => setShowNotes(true)}
+                variant="secondary"
+                className="border-white/10 bg-white/10 text-white hover:bg-white/15 text-sm"
+              >
+                <FileText size={16} />
+                {pdfResources.length > 1
+                  ? `Course Materials & PDFs (${pdfResources.length})`
+                  : "View notes (Protected)"}
               </Button>
             )}
           </div>
@@ -313,37 +326,67 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
       )}
 
       {/* Secure PDF Modal */}
-      {showNotes && course.pdfUrl && (
+      {showNotes && activePdf && (
         <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col backdrop-blur-2xl">
-          <div className="flex justify-between items-center p-4 border-b border-white/10 text-white">
-            <div className="font-bold flex items-center gap-2">
-              <Lock size={18} className="text-leaf" /> Protected Formulation Notes
+          <div className="flex flex-col border-b border-white/10 text-white">
+            <div className="flex justify-between items-center p-4">
+              <div className="font-bold flex items-center gap-2">
+                <Lock size={18} className="text-leaf shrink-0" />
+                <span className="truncate max-w-[220px] sm:max-w-md">
+                  {activePdf.title || "Protected Formulation Notes"}
+                </span>
+                {pdfResources.length > 1 && (
+                  <span className="rounded-full bg-leaf/20 text-leaf text-[10px] font-black px-2 py-0.5 shrink-0">
+                    {selectedPdfIndex + 1} of {pdfResources.length}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}&download=true`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-3.5 py-1.5 text-xs font-bold text-white hover:bg-moss transition shadow-sm"
+                >
+                  <Download size={13} /> Download PDF
+                </a>
+                <button
+                  onClick={() => setShowNotes(false)}
+                  className="p-2 hover:bg-white/10 rounded-full transition"
+                  title="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={`/api/courses/${course.slug}/pdf?download=true`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-3.5 py-1.5 text-xs font-bold text-white hover:bg-moss transition shadow-sm"
-              >
-                Download PDF
-              </a>
-              <button onClick={() => setShowNotes(false)} className="p-2 hover:bg-white/10 rounded-full transition" title="Close">
-                <X size={20} />
-              </button>
-            </div>
+
+            {/* Multiple PDF Selector Tabs */}
+            {pdfResources.length > 1 && (
+              <div className="flex items-center gap-2 px-4 pb-3 overflow-x-auto scrollbar-none">
+                {pdfResources.map((item, idx) => (
+                  <button
+                    key={item.id || idx}
+                    onClick={() => setSelectedPdfIndex(idx)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold whitespace-nowrap transition ${
+                      selectedPdfIndex === idx
+                        ? "bg-leaf text-white shadow-sm"
+                        : "bg-white/10 text-cream/70 hover:bg-white/20 hover:text-white"
+                    }`}
+                  >
+                    <FileText size={13} />
+                    <span>{item.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
           <div className="flex-1 w-full h-full bg-[#323639] relative">
-             {/* 
-                Direct native PDF embedding is much more reliable than Google Docs viewer, 
-                especially for local testing, private URLs, and large files. 
-                #toolbar=0 hides the download/print bar in most modern browsers (Chrome/Edge). 
-             */}
-             <iframe 
-               src={`${course.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
-               className="w-full h-full border-0" 
-               title="Secure PDF Notes"
-             />
+            <iframe 
+              src={`${activePdf.url}#toolbar=0&navpanes=0&scrollbar=0`} 
+              className="w-full h-full border-0" 
+              title={activePdf.title || "Secure PDF Notes"}
+            />
           </div>
         </div>
       )}

@@ -73,7 +73,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
   }
 
   const hasAccess = isEnrolled || isFree || isAdmin;
-  const hasPdf = !!course.pdfUrl;
+  const pdfResources = (course.pdfResources && course.pdfResources.length > 0)
+    ? course.pdfResources
+    : (course.pdfUrl ? [{ id: "pdf_1", title: `${course.title} Formulation Guide`, url: course.pdfUrl }] : []);
+  const hasPdf = pdfResources.length > 0;
 
   return (
     <>
@@ -273,7 +276,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                 </span>
                 {hasPdf && (
                   <span className="flex items-center gap-2">
-                    <FileText size={15} className="text-leaf shrink-0" /> PDF notes & formula sheet included
+                    <FileText size={15} className="text-leaf shrink-0" />
+                    {pdfResources.length > 1
+                      ? `${pdfResources.length} formulation PDFs & guides included`
+                      : "PDF notes & formula sheet included"}
                   </span>
                 )}
                 {!isFree && (
@@ -315,56 +321,82 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
               </div>
             )}
 
-            {/* Formulation Notes & PDF Handbook Section */}
+            {/* Formulation Notes & Multiple PDF Materials Section */}
             {hasPdf && (
-              <div className="rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-leaf/10 text-leaf">
-                      <FileText size={24} />
+              <div className="rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-forest/10 dark:border-white/10 pb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-leaf/10 text-leaf">
+                      <FileText size={22} />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h2 className="text-xl font-black text-forest dark:text-cream">
-                          Formulation Guide & PDF Handbook
+                          Formulation Guides & PDF Materials
                         </h2>
                         {hasAccess ? (
                           <span className="rounded-full bg-leaf/15 px-2.5 py-0.5 text-[10px] font-black text-leaf">
-                            Unlocked ✅
+                            Unlocked ({pdfResources.length}) ✅
                           </span>
                         ) : (
                           <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-black text-amber-600 dark:text-amber-400">
-                            🔒 Enrolled Only
+                            🔒 Enrolled Only ({pdfResources.length} {pdfResources.length === 1 ? "PDF" : "PDFs"})
                           </span>
                         )}
                       </div>
                       <p className="mt-1 text-xs text-ink/65 dark:text-cream/65 leading-relaxed">
                         {hasAccess
-                          ? "Official batch measurements, formulation percentages, raw material handling, and quality control steps."
-                          : "Contains exact formulation recipes, percentages, measurements, and supplier guidelines. Access is strictly reserved for enrolled students."}
+                          ? "Official batch measurements, formulation percentages, raw material sourcing, and safety checklists. 1-click download available for enrolled students."
+                          : "Official batch measurements, formula percentages, raw material handling, and safety specifications. Strictly unlocked upon enrollment."}
                       </p>
                     </div>
                   </div>
+                </div>
 
-                  <div className="shrink-0 sm:self-center">
-                    {hasAccess ? (
-                      <a
-                        href={`/api/courses/${course.slug}/pdf?download=true`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-2.5 text-xs font-bold text-white shadow-soft hover:bg-leaf transition"
-                      >
-                        <Download size={14} /> Download PDF Notes
-                      </a>
-                    ) : (
-                      <Link
-                        href={`/enroll?course=${course.slug}`}
-                        className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-2.5 text-xs font-bold text-white shadow-soft hover:bg-leaf transition"
-                      >
-                        <Lock size={13} /> Enroll to Unlock PDF
-                      </Link>
-                    )}
-                  </div>
+                {/* PDF Materials Grid */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {pdfResources.map((pdf, idx) => (
+                    <div
+                      key={pdf.id || idx}
+                      className="flex flex-col justify-between rounded-2xl border border-forest/10 bg-linen/40 p-4 dark:border-white/10 dark:bg-white/5 space-y-3 hover:border-leaf/30 transition shadow-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="grid size-6 place-items-center rounded-full bg-forest/10 text-[10px] font-black text-forest dark:bg-white/10 dark:text-cream shrink-0">
+                            {idx + 1}
+                          </span>
+                          <h3 className="text-sm font-bold text-forest dark:text-cream leading-tight">
+                            {pdf.title}
+                          </h3>
+                        </div>
+                        {pdf.description && (
+                          <p className="text-xs text-ink/60 dark:text-cream/60 pl-8 leading-relaxed">
+                            {pdf.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-2 pl-8 flex items-center gap-2">
+                        {hasAccess ? (
+                          <a
+                            href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(pdf.id)}&download=true`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-forest px-3.5 py-1.5 text-xs font-bold text-white shadow-soft hover:bg-leaf transition active:scale-95"
+                          >
+                            <Download size={13} /> Download PDF
+                          </a>
+                        ) : (
+                          <Link
+                            href={`/enroll?course=${course.slug}`}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-forest/10 hover:bg-forest/20 text-forest dark:bg-white/10 dark:text-cream px-3.5 py-1.5 text-xs font-bold transition"
+                          >
+                            <Lock size={12} /> Unlock with Enrollment
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
