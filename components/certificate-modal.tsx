@@ -14,7 +14,9 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
 } from "lucide-react";
+import { BRAND_LOGO_SRC } from "@/components/brand-logo";
 
 export function CertificateModal({
   open,
@@ -25,6 +27,7 @@ export function CertificateModal({
   initialStartDate = "",
   initialEndDate = "",
   isTemplatePreview = false,
+  initialCertId = "",
 }: {
   open: boolean;
   onClose: () => void;
@@ -34,6 +37,7 @@ export function CertificateModal({
   initialStartDate?: string;
   initialEndDate?: string;
   isTemplatePreview?: boolean;
+  initialCertId?: string;
 }) {
   const [certName, setCertName] = useState(
     initialName?.trim() || (isTemplatePreview ? "Sample Student Name" : "Valued Academy Student")
@@ -55,7 +59,7 @@ export function CertificateModal({
   const [showEditor, setShowEditor] = useState(isTemplatePreview);
 
   const [certId] = useState(
-    () => `CO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    () => initialCertId || `CO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
   );
 
   // Template variations
@@ -133,6 +137,18 @@ export function CertificateModal({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/verify?id=${certId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-500/30 dark:text-emerald-300 hover:bg-emerald-100 transition cursor-pointer"
+              title="Verify credential on the official verification portal"
+            >
+              <ShieldCheck size={14} className="text-emerald-600 dark:text-emerald-400" />
+              <span>Verify Online</span>
+              <ExternalLink size={12} />
+            </a>
+
             <button
               onClick={() => setShowEditor(!showEditor)}
               className="inline-flex items-center gap-1.5 rounded-full border border-forest/20 px-3.5 py-2 text-xs font-bold text-forest dark:border-white/20 dark:text-cream hover:bg-forest/5 transition cursor-pointer"
@@ -244,10 +260,14 @@ export function CertificateModal({
           id="certificate-print-area"
           className="relative mx-auto w-full aspect-[1.414/1] max-w-4xl rounded-2xl sm:rounded-[2rem] bg-[#fbf9f4] text-[#0a2318] shadow-2xl overflow-hidden flex flex-col justify-between p-6 sm:p-10 md:p-12 border-[8px] sm:border-[12px] border-[#0e3827] ring-4 sm:ring-8 ring-[#c5a059]/40 select-none"
         >
-          {/* Background Guilloché Watermark & Soft Radial Lighting */}
+          {/* Background Watermark & Soft Radial Lighting */}
           <div className="absolute inset-0 bg-[radial-gradient(#c5a059_1px,transparent_1px)] [background-size:24px_24px] opacity-15 pointer-events-none" />
-          <div className="absolute inset-0 grid place-items-center opacity-[0.04] pointer-events-none">
-            <Leaf size={420} className="text-[#0e3827]" />
+          <div className="absolute inset-0 grid place-items-center opacity-[0.05] pointer-events-none select-none">
+            <img
+              src={BRAND_LOGO_SRC}
+              alt="Charan Organics Watermark"
+              className="size-72 sm:size-96 object-contain"
+            />
           </div>
 
           {/* Inner Gold Inset Border with Corner Scrolls */}
@@ -257,24 +277,37 @@ export function CertificateModal({
           <div className="absolute bottom-5 left-5 size-7 sm:size-9 border-b-4 border-l-4 border-[#c5a059]" />
           <div className="absolute bottom-5 right-5 size-7 sm:size-9 border-b-4 border-r-4 border-[#c5a059]" />
 
-          {/* ── HEADER ── */}
-          <div className="relative z-10 text-center space-y-1 pt-1 sm:pt-2">
-            <div className="flex items-center justify-center gap-2 text-[10px] sm:text-xs font-black uppercase tracking-[0.35em] text-[#0e3827]">
-              <Leaf size={14} className="text-[#c5a059]" />
-              <span>Charan Organics Academy</span>
-              <Leaf size={14} className="text-[#c5a059]" />
+          {/* ── HEADER WITH OFFICIAL CHARAN ORGANICS LOGO ── */}
+          <div className="relative z-10 text-center space-y-1 sm:space-y-1.5 pt-1 sm:pt-2">
+            <div className="flex items-center justify-center gap-3">
+              <div className="relative grid size-12 sm:size-14 place-items-center rounded-full bg-white p-1 shadow-md border border-[#c5a059]/40 ring-2 ring-[#c5a059]/30 shrink-0">
+                <img
+                  src={BRAND_LOGO_SRC}
+                  alt="Charan Organics Official Logo"
+                  className="size-full object-contain"
+                />
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-black uppercase tracking-[0.3em] text-[#0e3827]">
+                  <span>Charan Organics Academy</span>
+                </div>
+                <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-[#854d0e]">
+                  Faculty of Botanical Arts & Organic Cosmetic Formulation
+                </p>
+                <p className="text-[8px] font-medium text-[#0e3827]/60 tracking-wider">
+                  Accredited Formulation Registry • Government Registered Trademark
+                </p>
+              </div>
             </div>
-            <p className="text-[9px] sm:text-[11px] font-bold uppercase tracking-[0.2em] text-[#854d0e]">
-              Faculty of Botanical Arts & Organic Cosmetic Formulation
-            </p>
-            <div className="pt-2 sm:pt-3">
+
+            <div className="pt-1 sm:pt-2">
               <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-extrabold uppercase tracking-widest text-[#0e3827] drop-shadow-xs">
                 Certificate of Completion
               </h1>
               <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#c5a059] mt-0.5">
                 & Professional Formulation Mastery
               </p>
-              <div className="mx-auto mt-2 h-0.5 w-36 sm:w-48 bg-gradient-to-r from-transparent via-[#c5a059] to-transparent" />
+              <div className="mx-auto mt-1.5 h-0.5 w-36 sm:w-48 bg-gradient-to-r from-transparent via-[#c5a059] to-transparent" />
             </div>
           </div>
 
@@ -319,26 +352,45 @@ export function CertificateModal({
           {/* ── FOOTER: VALIDATION, GOLD SEAL & AUTHORIZED SIGNATURE ── */}
           <div className="relative z-10 grid grid-cols-3 items-end gap-2 border-t border-[#c5a059]/40 pt-4 sm:pt-6 text-[10px] sm:text-xs text-[#0e3827]">
             {/* Left Column: Issue Info & Verification ID */}
-            <div className="text-left space-y-0.5">
-              <p className="text-[9px] uppercase tracking-wider font-bold text-[#0e3827]/60">Date of Award</p>
-              <p className="font-extrabold text-[#0e3827]">{endDate}</p>
-              <p className="font-mono text-[9px] sm:text-[10px] font-bold text-[#854d0e] pt-1">
-                Credential ID: {certId}
-              </p>
-              <p className="text-[8px] sm:text-[9px] text-[#0e3827]/50 truncate">
-                learn.charanorganics.com/verify
-              </p>
+            <div className="text-left space-y-1">
+              <div>
+                <p className="text-[9px] uppercase tracking-wider font-bold text-[#0e3827]/60">Date of Award</p>
+                <p className="font-extrabold text-[#0e3827]">{endDate}</p>
+              </div>
+              <div className="pt-0.5">
+                <p className="text-[8px] uppercase tracking-wider font-bold text-[#0e3827]/60">Digital Credential ID</p>
+                <p className="font-mono text-[9px] sm:text-[10px] font-black text-[#854d0e]">
+                  {certId}
+                </p>
+              </div>
+              <div className="pt-0.5">
+                <a
+                  href={`/verify?id=${certId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[8px] sm:text-[9px] font-bold text-[#0e3827] hover:text-[#854d0e] underline decoration-[#c5a059] transition"
+                  title="Click to verify this certificate on the official verification portal"
+                >
+                  <ShieldCheck size={11} className="text-emerald-700 shrink-0" />
+                  <span>learn.charanorganics.com/verify</span>
+                  <ExternalLink size={9} className="opacity-70 print:hidden" />
+                </a>
+              </div>
             </div>
 
             {/* Center Column: Official Golden Wax Medal Seal */}
             <div className="flex flex-col items-center justify-center">
               <div className="relative grid size-16 sm:size-20 md:size-24 place-items-center rounded-full bg-gradient-to-br from-[#ffd700] via-[#c5a059] to-[#996515] p-1 shadow-lg border-2 border-white ring-2 ring-[#c5a059]">
                 <div className="grid size-full place-items-center rounded-full border border-dashed border-[#5a3a08] bg-[#fbf9f4]/95 text-center p-1">
-                  <Award size={20} className="text-[#854d0e] sm:size-6" />
-                  <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-tighter text-[#5a3a08] leading-none">
+                  <img
+                    src={BRAND_LOGO_SRC}
+                    alt="Charan Organics Official Seal"
+                    className="size-7 sm:size-9 object-contain"
+                  />
+                  <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-tighter text-[#5a3a08] leading-none mt-0.5">
                     Verified Seal
                   </span>
-                  <span className="text-[6px] font-bold text-[#854d0e] leading-none">
+                  <span className="text-[6px] font-bold uppercase text-[#854d0e] leading-none">
                     Charan Organics
                   </span>
                 </div>

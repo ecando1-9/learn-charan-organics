@@ -5,6 +5,8 @@ import { Award, BookOpen, CheckCircle2, ChevronRight, Download, Loader2, PlayCir
 import Link from "next/link";
 import { getUserEnrolledCoursesWithProgress, type UserCourseProgress } from "@/app/actions/progress";
 import { CertificateModal } from "@/components/certificate-modal";
+import { getOrCreateStudentCertificate } from "@/app/actions/certificates";
+import { createClient } from "@/lib/supabase/client";
 
 export default function UserCertificatesPage() {
   const [courses, setCourses] = useState<UserCourseProgress[]>([]);
@@ -14,6 +16,7 @@ export default function UserCertificatesPage() {
 
   // Modal State
   const [selectedCourse, setSelectedCourse] = useState<UserCourseProgress | null>(null);
+  const [selectedCertId, setSelectedCertId] = useState<string>("");
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
@@ -28,8 +31,24 @@ export default function UserCertificatesPage() {
     });
   }, []);
 
-  function handleOpenCertModal(course: UserCourseProgress) {
+  async function handleOpenCertModal(course: UserCourseProgress) {
     setSelectedCourse(course);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const certRes = await getOrCreateStudentCertificate({
+          userId: user.id,
+          courseId: course.courseId,
+          studentName: userName,
+        });
+        if (certRes?.certificateNo) {
+          setSelectedCertId(certRes.certificateNo);
+        }
+      }
+    } catch {
+      // Fallback handled smoothly
+    }
     setModalOpen(true);
   }
 
@@ -189,6 +208,7 @@ export default function UserCertificatesPage() {
           courseTitle={selectedCourse.courseTitle}
           initialName={userName}
           completionPercentage={selectedCourse.completionPercentage}
+          initialCertId={selectedCertId}
         />
       )}
     </div>

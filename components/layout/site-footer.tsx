@@ -114,6 +114,9 @@ export function SiteFooter() {
               <Link href="/contact" className="hover:text-white transition">
                 Contact Desk
               </Link>
+              <Link href="/verify" className="hover:text-white text-emerald-400 font-bold transition flex items-center gap-1.5">
+                <ShieldCheck size={14} /> Verify Certificate
+              </Link>
               <Link href="/privacy" className="hover:text-white transition">
                 Privacy Policy
               </Link>

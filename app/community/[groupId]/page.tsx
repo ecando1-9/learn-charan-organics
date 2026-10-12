@@ -7,6 +7,8 @@ import { GroupHeaderInfo } from "@/components/community/group-header-info";
 import { Lock, ShieldCheck } from "lucide-react";
 import { checkUserIsAdmin } from "@/lib/supabase/profile";
 
+export const dynamic = "force-dynamic";
+
 interface Props {
   params: Promise<{ groupId: string }>;
 }

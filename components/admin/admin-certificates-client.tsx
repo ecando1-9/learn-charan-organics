@@ -23,6 +23,7 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { CertificateModal } from "@/components/certificate-modal";
+import { getOrCreateStudentCertificate } from "@/app/actions/certificates";
 
 export type StudentCourseItem = {
   courseId: string;
@@ -75,10 +76,48 @@ export function AdminCertificatesClient({
     completionPercentage: number;
     startDate?: string;
     endDate?: string;
+    certId?: string;
   } | null>(null);
 
   // Official Certificate Template Preview Modal
   const [openTemplateModal, setOpenTemplateModal] = useState(false);
+
+  async function handleOpenAdminCertPreview(
+    student: { userId: string; studentName: string },
+    course: StudentCourseItem
+  ) {
+    try {
+      const res = await getOrCreateStudentCertificate({
+        userId: student.userId,
+        courseId: course.courseId,
+        studentName: student.studentName,
+      });
+      setCertPreviewCourse({
+        courseTitle: course.courseTitle,
+        studentName: student.studentName,
+        completionPercentage: course.progressPercent,
+        startDate: course.enrolledAtFormatted,
+        endDate: new Date().toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }),
+        certId: res?.certificateNo,
+      });
+    } catch {
+      setCertPreviewCourse({
+        courseTitle: course.courseTitle,
+        studentName: student.studentName,
+        completionPercentage: course.progressPercent,
+        startDate: course.enrolledAtFormatted,
+        endDate: new Date().toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }),
+      });
+    }
+  }
 
   // Platform-wide Metrics
   const totalStudents = students.length;
@@ -560,19 +599,7 @@ export function AdminCertificatesClient({
                       <div className="flex items-center justify-between pt-1">
                         {course.isEligible ? (
                           <button
-                            onClick={() =>
-                              setCertPreviewCourse({
-                                courseTitle: course.courseTitle,
-                                studentName: student.studentName,
-                                completionPercentage: course.progressPercent,
-                                startDate: course.enrolledAtFormatted,
-                                endDate: new Date().toLocaleDateString("en-IN", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                }),
-                              })
-                            }
+                            onClick={() => handleOpenAdminCertPreview(student, course)}
                             className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-400 transition"
                           >
                             <CheckCircle2 size={11} />
@@ -806,17 +833,13 @@ export function AdminCertificatesClient({
                         {course.isEligible ? (
                           <button
                             onClick={() =>
-                              setCertPreviewCourse({
-                                courseTitle: course.courseTitle,
-                                studentName: activeModalStudent.studentName,
-                                completionPercentage: course.progressPercent,
-                                startDate: course.enrolledAtFormatted,
-                                endDate: new Date().toLocaleDateString("en-IN", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                }),
-                              })
+                              handleOpenAdminCertPreview(
+                                {
+                                  userId: activeModalStudent.userId,
+                                  studentName: activeModalStudent.studentName,
+                                },
+                                course
+                              )
                             }
                             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-sm active:scale-95"
                           >
@@ -866,6 +889,7 @@ export function AdminCertificatesClient({
           completionPercentage={certPreviewCourse.completionPercentage}
           initialStartDate={certPreviewCourse.startDate}
           initialEndDate={certPreviewCourse.endDate}
+          initialCertId={certPreviewCourse.certId}
         />
       )}
 
