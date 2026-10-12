@@ -161,9 +161,11 @@ export function TestimonialsSection() {
                   <div className="grid size-9 place-items-center rounded-full bg-leaf text-white font-black text-xs shrink-0 shadow-md">
                     {item.avatar}
                   </div>
-                  <div>
-                    <div className="font-bold text-xs text-white">{item.name}</div>
-                    <div className="text-[10px] text-cream/70">{item.role}</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-white truncate">{item.name}</div>
+                    <div className="text-[10px] text-emerald-300 font-semibold truncate max-w-[200px]" title={item.role}>
+                      {item.role}
+                    </div>
                   </div>
                 </div>
               </div>

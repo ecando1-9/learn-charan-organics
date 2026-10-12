@@ -169,7 +169,7 @@ export default async function HomePage() {
       </div>
 
       {/* 5. Prominent Community Section */}
-      <section className="overflow-hidden bg-white py-16 sm:py-24 dark:bg-[#07140f] border-b border-forest/10 dark:border-white/10">
+      <section className="overflow-hidden bg-white py-12 sm:py-20 dark:bg-[#07140f] border-b border-forest/10 dark:border-white/10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
@@ -249,7 +249,7 @@ export default async function HomePage() {
       </section>
 
       {/* 6. Features Grid */}
-      <Section className="py-16 sm:py-24">
+      <Section className="py-12 sm:py-20">
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
           <h2 className="text-2xl font-black text-forest dark:text-cream sm:text-4xl">Everything you need to succeed</h2>
           <p className="mt-3 text-sm sm:text-base text-ink/70 dark:text-cream/70">
@@ -292,7 +292,7 @@ export default async function HomePage() {
       <TestimonialsSection />
 
       {/* 8. Call to Action */}
-      <Section className="pb-24">
+      <Section className="pb-8 sm:pb-16">
         <JoinAcademyCta />
       </Section>
     </>

@@ -65,7 +65,7 @@ export function HeroCarousel() {
   }
 
   return (
-    <div className="relative h-[55svh] min-h-[380px] max-h-[520px] w-full overflow-hidden bg-[#07140f] group">
+    <div className="relative min-h-[460px] sm:min-h-[420px] sm:h-[55svh] max-h-[580px] w-full overflow-hidden bg-[#07140f] group">
       {slides.map((slide, index) => {
         const hasFailed = failedImages[slide.id];
 
@@ -118,19 +118,19 @@ export function HeroCarousel() {
                     {slide.description}
                   </p>
 
-                  <div className="pt-2 flex flex-wrap gap-3">
+                  <div className="pt-2 flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                     <Link href={slide.primaryAction.href} className="w-full sm:w-auto">
-                      <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 text-sm font-bold shadow-xl border border-emerald-400/30">
-                        {slide.primaryAction.icon && <slide.primaryAction.icon size={16} className="mr-2" />}
+                      <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs sm:text-sm font-bold shadow-xl border border-emerald-400/30">
+                        {slide.primaryAction.icon && <slide.primaryAction.icon size={15} className="mr-2" />}
                         {slide.primaryAction.label}
                       </Button>
                     </Link>
                     <Link href={slide.secondaryAction.href} className="w-full sm:w-auto">
                       <Button
                         variant="secondary"
-                        className="w-full sm:w-auto border-white/40 bg-black/40 text-white hover:bg-black/60 px-6 py-2.5 text-sm font-bold backdrop-blur-md shadow-lg"
+                        className="w-full sm:w-auto border-white/40 bg-black/40 text-white hover:bg-black/60 px-5 py-2.5 text-xs sm:text-sm font-bold backdrop-blur-md shadow-lg"
                       >
-                        {slide.secondaryAction.icon && <slide.secondaryAction.icon size={16} className="mr-2" />}
+                        {slide.secondaryAction.icon && <slide.secondaryAction.icon size={15} className="mr-2" />}
                         {slide.secondaryAction.label}
                       </Button>
                     </Link>
