@@ -14,7 +14,9 @@ export function CourseCard({ course }: { course: Course }) {
 
   const destinationUrl = course.isEnrolled
     ? `/learn/${course.slug}/main-video`
-    : `/courses/${course.slug}`;
+    : isFree
+    ? `/learn/${course.slug}/main-video`
+    : `/enroll?course=${course.slug}`;
 
   return (
     <Link
@@ -102,10 +104,12 @@ export function CourseCard({ course }: { course: Course }) {
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-bold transition-colors ${
               course.isEnrolled
                 ? "bg-emerald-600 text-white group-hover:bg-emerald-700 shadow-sm"
-                : "bg-leaf/10 text-leaf group-hover:bg-leaf group-hover:text-white"
+                : isFree
+                ? "bg-leaf/10 text-leaf group-hover:bg-leaf group-hover:text-white"
+                : "bg-emerald-600 text-white group-hover:bg-emerald-700 shadow-sm"
             }`}
           >
-            {course.isEnrolled ? "Start Learning →" : "View"}
+            {course.isEnrolled ? "Start Learning →" : isFree ? "Start Free →" : "Enroll →"}
           </span>
         </div>
       </div>

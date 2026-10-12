@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = {
   title: "Free Classes | Charan Organics Academy",
   description:
-    "Watch free herbal cosmetic formulation classes. Learn soap, shampoo, and natural hair care basics from Charan Organics Academy — 100% free with no login required.",
+    "Watch free herbal cosmetic formulation classes. Learn soap, shampoo, and natural hair care basics from Charan Organics Academy — 100% free.",
 };
 
 export const dynamic = "force-dynamic";
@@ -89,13 +89,13 @@ export default async function FreeClassesPage() {
       <section className="bg-forest text-cream py-16 sm:py-20 relative overflow-hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wider backdrop-blur text-emerald-300">
-            <Youtube size={15} className="text-red-400" /> Free Botanical Classes
+            <Sparkles size={15} className="text-emerald-300" /> Free Botanical Classes
           </span>
           <h1 className="mt-4 text-3xl font-black sm:text-5xl lg:text-6xl text-white">
             Free Formulation Classes
           </h1>
           <p className="mt-4 max-w-2xl text-base sm:text-lg leading-relaxed text-cream/80">
-            Learn organic cosmetic making fundamentals completely free of charge. No login or subscription required — watch directly here or on YouTube.
+            Learn organic cosmetic making fundamentals completely free of charge. Watch practical formulation lessons directly below.
           </p>
         </div>
       </section>
@@ -151,9 +151,6 @@ export default async function FreeClassesPage() {
                       <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 shadow-sm">
                         🎁 100% Free Class
                       </span>
-                      <span className="rounded-full bg-forest/5 dark:bg-white/10 text-forest dark:text-cream text-[10px] font-bold px-2.5 py-0.5">
-                        No Login Required
-                      </span>
                     </div>
 
                     <h3 className="text-xl font-black text-forest dark:text-cream leading-tight">
@@ -176,17 +173,6 @@ export default async function FreeClassesPage() {
                       >
                         <Play size={14} /> Watch on Academy
                       </Link>
-                    )}
-
-                    {fc.youtubeVideoId && (
-                      <a
-                        href={`https://www.youtube.com/watch?v=${fc.youtubeVideoId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-full bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 text-xs font-black shadow-md transition"
-                      >
-                        <Youtube size={15} /> Watch on YouTube
-                      </a>
                     )}
                   </div>
                 </div>

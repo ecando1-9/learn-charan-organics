@@ -56,10 +56,10 @@ export async function FreeClassesStrip() {
           <div>
             <p className="font-bold uppercase tracking-[0.18em] text-leaf">100% Free</p>
             <h2 className="mt-2 text-3xl font-black sm:text-4xl">
-              Free Classes on YouTube
+              Free Masterclasses
             </h2>
             <p className="mt-2 max-w-xl text-sm text-white/70">
-              Learn the basics of herbal product making — no login needed. Watch directly on YouTube.
+              Learn the basics of herbal cosmetic product making with step-by-step video masterclasses.
             </p>
           </div>
           <Link
@@ -76,11 +76,9 @@ export async function FreeClassesStrip() {
               fc.thumbnail_url ||
               `https://img.youtube.com/vi/${fc.youtube_video_id}/hqdefault.jpg`;
             return (
-              <a
+              <Link
                 key={fc.id}
-                href={`https://www.youtube.com/watch?v=${fc.youtube_video_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/free-classes"
                 className="group relative w-72 shrink-0 overflow-hidden rounded-[2rem] bg-white/10 transition hover:bg-white/20"
               >
                 <div className="relative h-44 overflow-hidden rounded-t-[2rem]">
@@ -106,10 +104,10 @@ export async function FreeClassesStrip() {
                     </p>
                   )}
                   <p className="mt-2 text-xs font-bold text-leaf">
-                    Watch on YouTube →
+                    Watch Free Class →
                   </p>
                 </div>
-              </a>
+              </Link>
             );
           })}
         </div>

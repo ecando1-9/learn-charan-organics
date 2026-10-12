@@ -98,11 +98,10 @@ function EnrollContent() {
 
       let rawData: any[] = [];
 
-      // Try selecting duration_variants, fallback gracefully if not present in schema
+      // Query courses from lms_courses (excluding non-existent price_1year_inr column)
       const { data, error } = await supabase
         .from("lms_courses")
-        .select("id,title,slug,thumbnail_url,youtube_url,price_inr,price_1year_inr,duration_variants,is_free")
-        .eq("published", true)
+        .select("id,title,slug,thumbnail_url,youtube_url,price_inr,duration_variants,is_free,published")
         .order("sort_order", { ascending: true });
 
       if (!error && data) {
@@ -110,21 +109,39 @@ function EnrollContent() {
       } else {
         const { data: fallback } = await supabase
           .from("lms_courses")
-          .select("id,title,slug,thumbnail_url,youtube_url,price_inr,price_1year_inr,is_free")
-          .eq("published", true)
-          .order("sort_order", { ascending: true });
+          .select("id,title,slug,thumbnail_url,youtube_url,price_inr,duration_variants,is_free,published");
         rawData = fallback ?? [];
       }
 
-      const all: Course[] = rawData.map((c: any) => {
-        const basePrice = Number(c.price_inr) || 0;
-        const variants = parseDurationVariants(c.duration_variants, basePrice, c.price_1year_inr);
-        return {
-          ...c,
-          price_inr: basePrice,
-          variants,
-        };
-      });
+      const all: Course[] = rawData
+        .filter((c: any) => c.published !== false || (preselect && c.slug === preselect))
+        .map((c: any) => {
+          const basePrice = Number(c.price_inr) || 0;
+          const variants = parseDurationVariants(c.duration_variants, basePrice);
+          return {
+            ...c,
+            price_inr: basePrice,
+            variants,
+          };
+        });
+
+      // Fail-safe: If preselect course slug was specified but not found in bulk query, fetch directly
+      if (preselect && !all.some((c) => c.slug === preselect)) {
+        const { data: directCourse } = await supabase
+          .from("lms_courses")
+          .select("id,title,slug,thumbnail_url,youtube_url,price_inr,duration_variants,is_free,published")
+          .eq("slug", preselect)
+          .maybeSingle();
+
+        if (directCourse) {
+          const basePrice = Number(directCourse.price_inr) || 0;
+          all.push({
+            ...directCourse,
+            price_inr: basePrice,
+            variants: parseDurationVariants(directCourse.duration_variants, basePrice),
+          });
+        }
+      }
 
       // If a specific free course was requested, redirect to watch immediately
       if (preselect) {
@@ -566,34 +583,35 @@ function EnrollContent() {
                     )}
                   </div>
 
-                  {/* Optional: Add more courses accordion */}
-                  {otherCourses.length > 0 && (
-                    <div className="rounded-[2rem] bg-white p-5 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
-                      <button
-                        type="button"
-                        onClick={() => setShowOtherCourses(!showOtherCourses)}
-                        className="w-full flex items-center justify-between text-left group cursor-pointer"
-                      >
+                  {/* Optional: Add more courses or empty state */}
+                  {otherCourses.length > 0 ? (
+                    <div className="rounded-[2rem] bg-white p-5 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="grid size-9 place-items-center rounded-xl bg-forest/5 group-hover:bg-forest/10 dark:bg-white/10 transition">
+                          <div className="grid size-9 place-items-center rounded-xl bg-forest/5 dark:bg-white/10">
                             <ShoppingCart size={17} className="text-leaf" />
                           </div>
                           <div>
                             <p className="text-xs sm:text-sm font-black text-forest dark:text-cream">
-                              Want to bundle more courses? (+{otherCourses.length} available)
+                              Add More Masterclasses to Your Enrollment
                             </p>
                             <p className="text-[11px] text-ink/50 dark:text-cream/50">
-                              Click to view and add additional academy masterclasses
+                              {otherCourses.length} additional academy {otherCourses.length === 1 ? "course" : "courses"} available to bundle
                             </p>
                           </div>
                         </div>
-                        <div className="grid size-7 place-items-center rounded-full bg-forest/5 text-forest dark:bg-white/10 dark:text-cream">
-                          {showOtherCourses ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowOtherCourses(!showOtherCourses)}
+                          className="text-xs font-bold text-leaf hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          {showOtherCourses ? "Collapse" : `View Courses (${otherCourses.length})`}
+                          {showOtherCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                      </div>
 
                       {showOtherCourses && (
-                        <div className="mt-4 pt-4 border-t border-forest/10 dark:border-white/10 space-y-3">
+                        <div className="pt-3 border-t border-forest/10 dark:border-white/10 space-y-3">
                           {otherCourses.map((course) => {
                             const isChecked = selected.has(course.id);
                             const activeVariant = getCourseActiveVariant(course);
@@ -602,19 +620,19 @@ function EnrollContent() {
                             return (
                               <div
                                 key={course.id}
-                                className={`rounded-2xl border-2 p-3.5 transition ${
+                                className={`rounded-2xl border-2 p-3.5 transition flex items-center justify-between gap-3 ${
                                   isChecked
-                                    ? "border-leaf bg-leaf/5 shadow-sm"
+                                    ? "border-emerald-600 bg-emerald-500/10 shadow-sm dark:border-emerald-500 dark:bg-emerald-950/30"
                                     : "border-forest/10 bg-linen/40 hover:border-forest/20 dark:border-white/10 dark:bg-white/5"
                                 }`}
                               >
-                                <div className="flex items-start gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <button
                                     type="button"
                                     onClick={() => toggleCourse(course.id)}
-                                    className={`mt-1 grid size-5 shrink-0 place-items-center rounded-lg border-2 transition ${
+                                    className={`grid size-5 shrink-0 place-items-center rounded-lg border-2 transition cursor-pointer ${
                                       isChecked
-                                        ? "border-leaf bg-leaf text-white"
+                                        ? "border-emerald-600 bg-emerald-600 text-white"
                                         : "border-forest/25 bg-white dark:border-cream/25 dark:bg-white/10"
                                     }`}
                                   >
@@ -636,18 +654,38 @@ function EnrollContent() {
                                       {activeVariant.name}
                                     </p>
                                   </div>
+                                </div>
 
-                                  <div className="text-right shrink-0">
-                                    <span className="text-xs font-black text-leaf">
-                                      ₹{activePrice.toLocaleString("en-IN")}
-                                    </span>
-                                  </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <span className="text-xs sm:text-sm font-black text-leaf dark:text-emerald-400">
+                                    ₹{activePrice.toLocaleString("en-IN")}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleCourse(course.id)}
+                                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
+                                      isChecked
+                                        ? "bg-emerald-600 text-white shadow-sm"
+                                        : "bg-forest/10 hover:bg-forest/20 text-forest dark:bg-white/10 dark:text-cream"
+                                    }`}
+                                  >
+                                    {isChecked ? "Added ✓" : "+ Add Course"}
+                                  </button>
                                 </div>
                               </div>
                             );
                           })}
                         </div>
                       )}
+                    </div>
+                  ) : (
+                    <div className="rounded-[2rem] bg-white p-4 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 flex items-center gap-3 text-xs text-ink/65 dark:text-cream/65">
+                      <div className="grid size-8 place-items-center rounded-full bg-forest/5 text-forest dark:bg-white/10 dark:text-cream shrink-0">
+                        <CheckCircle2 size={16} className="text-leaf" />
+                      </div>
+                      <p>
+                        No other courses currently available for bundling. You are enrolling in <strong>{preselectedCourse.title}</strong>.
+                      </p>
                     </div>
                   )}
                 </div>
