@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 const dashboardNav = [
   { href: "/dashboard", label: "Overview", icon: Home },
-  { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
+  { href: "/dashboard/courses", label: "My Learning", icon: BookOpen },
   { href: "/community", label: "Community", icon: Users2 },
   { href: "/dashboard/certificates", label: "Certificates", icon: Award },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },

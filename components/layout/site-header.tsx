@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, GraduationCap, Menu, Moon, Search, ShieldCheck, Sun, Users2, UserRound, X } from "lucide-react";
+import { BookOpen, GraduationCap, Home, Menu, Moon, Search, ShieldCheck, Sun, Users2, UserRound, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -192,13 +192,13 @@ export function SiteHeader() {
         </div>
       )}
 
-      {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-forest/10 bg-cream/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-[#07140f]/95 shadow-lg">
+      {/* Mobile bottom nav — Top-Class Industry Standard */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-forest/10 bg-white/95 px-1 pt-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur-2xl lg:hidden dark:border-white/10 dark:bg-[#06140e]/95 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         {[
-          { href: "/", label: "Home", icon: GraduationCap },
+          { href: "/", label: "Home", icon: Home },
           { href: "/courses", label: "Courses", icon: Search },
-          { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
-          { href: "/community", label: "Groups", icon: Users2 },
+          { href: "/dashboard/courses", label: "My Learning", icon: BookOpen },
+          { href: "/community", label: "Community", icon: Users2 },
           { href: userLabel ? "/dashboard/settings" : "/login", label: "Profile", icon: UserRound }
         ].map((item) => {
           const isActive =
@@ -213,14 +213,47 @@ export function SiteHeader() {
               : pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href + "/"));
 
           return (
-            <Link key={item.href} href={item.href} className={cn(
-              "flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-[10px] font-semibold transition",
-              isActive
-                ? "text-leaf font-bold dark:text-emerald-400"
-                : "text-ink/60 hover:text-forest dark:text-cream/60 dark:hover:text-cream"
-            )}>
-              <item.icon size={19} className={isActive ? "stroke-[2.5]" : "stroke-[1.8]"} />
-              <span className="truncate max-w-[55px] text-center leading-none">{item.label}</span>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "group flex flex-col items-center justify-center min-w-0 px-0.5 py-1 text-center transition-all duration-150 active:scale-95",
+                isActive
+                  ? "text-leaf dark:text-emerald-400"
+                  : "text-ink/65 hover:text-forest dark:text-cream/65 dark:hover:text-cream"
+              )}
+            >
+              {/* Bold Icon Pill with active background indicator */}
+              <div
+                className={cn(
+                  "relative grid size-8 sm:size-9 place-items-center rounded-full transition-all duration-200",
+                  isActive
+                    ? "bg-leaf/15 text-forest dark:bg-emerald-500/20 dark:text-emerald-300 scale-105 shadow-xs"
+                    : "text-ink/75 dark:text-cream/75 group-hover:scale-105"
+                )}
+              >
+                <item.icon
+                  size={20}
+                  className={cn(
+                    "transition-all",
+                    isActive
+                      ? "stroke-[2.7] text-leaf dark:text-emerald-400"
+                      : "stroke-[2.2]"
+                  )}
+                />
+              </div>
+
+              {/* Text label: 100% visible, fully readable, unclipped */}
+              <span
+                className={cn(
+                  "block w-full text-center tracking-tight text-[10px] sm:text-[11px] leading-tight mt-0.5 transition-colors whitespace-nowrap",
+                  isActive
+                    ? "font-black text-leaf dark:text-emerald-400"
+                    : "font-bold text-ink/75 dark:text-cream/75"
+                )}
+              >
+                {item.label}
+              </span>
             </Link>
           );
         })}
