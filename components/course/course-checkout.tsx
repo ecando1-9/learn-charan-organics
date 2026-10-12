@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import QRCode from "qrcode";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -30,7 +31,11 @@ import {
   CourseDurationVariant,
   getSelectedVariant,
 } from "@/lib/course-variants";
-import { PAYMENT_CONFIG, getUpiQrCodeUrl } from "@/lib/payment-config";
+import {
+  PAYMENT_CONFIG,
+  getUpiPaymentUrl,
+  getInternalUpiQrUrl,
+} from "@/lib/payment-config";
 
 export type CheckoutCourse = {
   id: string;
@@ -190,7 +195,34 @@ export function CourseCheckout({
     ? courses.filter((c) => c.id !== primaryCourse.id)
     : [];
 
-  const qrUrl = getUpiQrCodeUrl(totalAmount, 260);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
+
+  useEffect(() => {
+    let isCurrent = true;
+    const upiLink = getUpiPaymentUrl(totalAmount);
+    QRCode.toDataURL(upiLink, {
+      width: 280,
+      margin: 1.5,
+      color: {
+        dark: "#0b2b1a",
+        light: "#ffffff",
+      },
+    })
+      .then((dataUrl) => {
+        if (isCurrent) setQrCodeDataUrl(dataUrl);
+      })
+      .catch((err) => {
+        console.error("Local QR generation fallback:", err);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [totalAmount]);
+
+  const upiPaymentLink = getUpiPaymentUrl(totalAmount);
+  const fallbackQrUrl = getInternalUpiQrUrl(totalAmount);
+  const activeQrSrc = qrCodeDataUrl || fallbackQrUrl;
 
   const checkoutUrl = typeof window !== "undefined"
     ? window.location.pathname + window.location.search
@@ -717,20 +749,34 @@ export function CourseCheckout({
               </div>
 
               {/* Dynamic QR Code */}
-              <div className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-linen/50 border border-forest/10 dark:bg-white/5 dark:border-white/10 text-center space-y-2">
-                <div className="p-2 bg-white rounded-xl shadow-xs">
+              <div className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-linen/50 border border-forest/10 dark:bg-white/5 dark:border-white/10 text-center space-y-2.5">
+                <div className="p-2.5 bg-white rounded-2xl shadow-xs border border-forest/10">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={qrUrl}
-                    alt="Scan UPI QR Code"
-                    className="size-44 object-contain"
+                    src={activeQrSrc}
+                    alt={`Scan to Pay ₹${totalAmount}`}
+                    className="size-48 object-contain"
                   />
                 </div>
-                <p className="text-xs font-bold text-forest dark:text-cream">
-                  Scan to Pay ₹{totalAmount.toLocaleString("en-IN")}
-                </p>
-                <p className="text-[10px] text-ink/50 dark:text-cream/50">
-                  Works with Google Pay, PhonePe, Paytm, or BHIM
-                </p>
+                <div>
+                  <p className="text-xs font-black text-forest dark:text-cream">
+                    Scan to Pay ₹{totalAmount.toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
+                    Works with Google Pay, PhonePe, Paytm, or BHIM
+                  </p>
+                </div>
+
+                {/* Mobile Direct Pay Button */}
+                <div className="w-full pt-1">
+                  <a
+                    href={upiPaymentLink}
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs"
+                  >
+                    <span>Tap to Open UPI App (GPay / PhonePe)</span>
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
               </div>
 
               {/* Verification Form: UTR & Screenshot */}

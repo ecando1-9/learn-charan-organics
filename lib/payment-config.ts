@@ -1,3 +1,5 @@
+import QRCode from "qrcode";
+
 export const PAYMENT_CONFIG = {
   // Official Academy UPI ID (VPA)
   upiId: process.env.NEXT_PUBLIC_ACADEMY_UPI_ID || "charanorganicsoaps-1@okicici",
@@ -18,7 +20,18 @@ export function getUpiPaymentUrl(amount: number, note = "Course Enrollment"): st
   return `upi://pay?pa=${upiId}&pn=${name}&am=${amount}&cu=INR&tn=${encNote}`;
 }
 
-export function getUpiQrCodeUrl(amount: number, size = 260): string {
+export async function generateQrDataUrl(amount: number, size = 300): Promise<string> {
   const upiUrl = getUpiPaymentUrl(amount);
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(upiUrl)}`;
+  return QRCode.toDataURL(upiUrl, {
+    width: size,
+    margin: 1.5,
+    color: {
+      dark: "#0b2b1a",
+      light: "#ffffff",
+    },
+  });
+}
+
+export function getInternalUpiQrUrl(amount: number): string {
+  return `/api/upi/qr?amount=${amount}`;
 }
