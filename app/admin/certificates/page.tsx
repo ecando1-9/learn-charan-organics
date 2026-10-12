@@ -1,6 +1,11 @@
-import { Award, CheckCircle2, Clock, Search, ShieldCheck, UserCheck, BookOpen } from "lucide-react";
+import { Award } from "lucide-react";
 import { createAdminClient, getAdminClientConfigError } from "@/lib/supabase/admin";
 import { AdminConfigNotice } from "@/components/admin/admin-config-notice";
+import {
+  AdminCertificatesClient,
+  type StudentCertificateSummary,
+  type StudentCourseItem,
+} from "@/components/admin/admin-certificates-client";
 
 export const dynamic = "force-dynamic";
 
@@ -12,72 +17,155 @@ export default async function AdminCertificatesPage() {
 
   const admin = createAdminClient();
 
-  // Fetch active enrollments with user profiles and courses
-  const { data: enrollments } = await admin
+  // 1. Fetch active enrollments
+  const { data: rawEnrollments } = await admin
     .from("lms_enrollments")
-    .select(`
-      id,
-      user_id,
-      course_id,
-      enrolled_at,
-      status,
-      lms_courses (
-        id,
-        title,
-        slug
-      )
-    `)
+    .select("id, user_id, course_id, enrolled_at, status")
     .order("enrolled_at", { ascending: false });
 
-  // Fetch all profiles
-  const { data: profiles } = await admin
+  const enrollments = (rawEnrollments ?? []).filter(
+    (e: any) => !e.status || e.status === "active"
+  );
+
+  // 2. Fetch all profiles
+  const { data: rawProfiles } = await admin
     .from("lms_profiles")
-    .select("id, full_name, email");
+    .select("id, full_name, email, role, created_at");
 
-  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  const profileMap = new Map((rawProfiles ?? []).map((p: any) => [p.id, p]));
 
-  // Fetch total completed lessons per user/course from lms_progress
-  const { data: progressRows } = await admin
-    .from("lms_progress")
-    .select("user_id, course_id, completed")
-    .eq("completed", true);
+  // 3. Fetch all courses
+  const { data: rawCourses } = await admin
+    .from("lms_courses")
+    .select("id, title, slug, thumbnail_url, youtube_url, is_free, published");
 
-  const completedMap = new Map<string, number>();
-  (progressRows ?? []).forEach((row: any) => {
-    const key = `${row.user_id}:${row.course_id}`;
-    completedMap.set(key, (completedMap.get(key) ?? 0) + 1);
+  const courseMap = new Map((rawCourses ?? []).map((c: any) => [c.id, c]));
+
+  // 4. Fetch curriculum to calculate exact lesson counts per course
+  const [modulesRes, lessonsRes, progressRes] = await Promise.all([
+    admin.from("lms_modules").select("id, course_id"),
+    admin.from("lms_lessons").select("id, module_id"),
+    admin
+      .from("lms_progress")
+      .select("user_id, course_id, lesson_id, completed")
+      .eq("completed", true),
+  ]);
+
+  const moduleToCourse = new Map<string, string>();
+  (modulesRes.data ?? []).forEach((m: any) => {
+    moduleToCourse.set(m.id, m.course_id);
   });
 
-  // Calculate items
-  const items = (enrollments ?? []).map((enroll: any) => {
-    const profile = profileMap.get(enroll.user_id);
-    const course = enroll.lms_courses;
-    const completedCount = completedMap.get(`${enroll.user_id}:${enroll.course_id}`) ?? 0;
-    // Assume ~10 lessons average if total not known
-    const totalLessons = 10;
-    const progressPercent = Math.min(100, Math.round((completedCount / totalLessons) * 100));
-    const isEligible = progressPercent >= 70;
+  const courseLessonCountMap = new Map<string, number>();
+  (lessonsRes.data ?? []).forEach((l: any) => {
+    const courseId = moduleToCourse.get(l.module_id);
+    if (courseId) {
+      courseLessonCountMap.set(courseId, (courseLessonCountMap.get(courseId) ?? 0) + 1);
+    }
+  });
 
-    return {
-      id: enroll.id,
-      userId: enroll.user_id,
-      studentName: profile?.full_name || profile?.email?.split("@")[0] || "Student",
-      email: profile?.email || "Unknown Email",
-      courseTitle: course?.title || "Course",
-      courseSlug: course?.slug || "",
-      enrolledAt: new Date(enroll.enrolled_at).toLocaleDateString("en-IN", {
+  // 5. Map completed lessons by user and course
+  const userCourseCompletedMap = new Map<string, Set<string>>();
+  (progressRes.data ?? []).forEach((p: any) => {
+    if (!p.user_id || !p.course_id) return;
+    const key = `${p.user_id}:${p.course_id}`;
+    const set = userCourseCompletedMap.get(key) ?? new Set<string>();
+    if (p.lesson_id) set.add(p.lesson_id);
+    userCourseCompletedMap.set(key, set);
+  });
+
+  // 6. Group enrollments by student user_id
+  const enrollmentsByUser = new Map<string, any[]>();
+  enrollments.forEach((enroll: any) => {
+    if (!enroll.user_id) return;
+    const list = enrollmentsByUser.get(enroll.user_id) ?? [];
+    list.push(enroll);
+    enrollmentsByUser.set(enroll.user_id, list);
+  });
+
+  const students: StudentCertificateSummary[] = Array.from(enrollmentsByUser.entries()).map(
+    ([userId, userEnrollments]) => {
+      const profile = profileMap.get(userId);
+
+      // Student name fallback
+      let studentName = profile?.full_name?.trim();
+      if (!studentName || studentName.toLowerCase() === "student") {
+        if (profile?.email && profile.email.includes("@")) {
+          const handle = profile.email.split("@")[0];
+          studentName = handle.charAt(0).toUpperCase() + handle.slice(1);
+        } else {
+          studentName = `Student ${userId.slice(0, 4)}`;
+        }
+      }
+
+      // Course breakdown
+      const seenCourses = new Set<string>();
+      const courses: StudentCourseItem[] = [];
+
+      userEnrollments.forEach((enroll: any) => {
+        if (seenCourses.has(enroll.course_id)) return;
+        seenCourses.add(enroll.course_id);
+
+        const course = courseMap.get(enroll.course_id);
+        if (!course) return;
+
+        const totalLessons = courseLessonCountMap.get(enroll.course_id) || 1;
+        const completedCount =
+          userCourseCompletedMap.get(`${userId}:${enroll.course_id}`)?.size ?? 0;
+        const progressPercent = Math.min(
+          100,
+          Math.round((completedCount / totalLessons) * 100)
+        );
+        const isEligible = !course.is_free && progressPercent >= 70;
+
+        courses.push({
+          courseId: course.id,
+          courseTitle: course.title || "Course",
+          courseSlug: course.slug || "",
+          thumbnailUrl: course.thumbnail_url || null,
+          enrolledAt: enroll.enrolled_at || new Date().toISOString(),
+          enrolledAtFormatted: new Date(enroll.enrolled_at || Date.now()).toLocaleDateString(
+            "en-IN",
+            { day: "numeric", month: "short", year: "numeric" }
+          ),
+          totalLessons,
+          completedLessons: completedCount,
+          progressPercent,
+          isEligible,
+          isFree: Boolean(course.is_free),
+        });
+      });
+
+      const totalCourses = courses.length;
+      const eligibleCertificates = courses.filter((c) => c.isEligible).length;
+      const totalProg = courses.reduce((sum, c) => sum + c.progressPercent, 0);
+      const averageProgress = totalCourses > 0 ? Math.round(totalProg / totalCourses) : 0;
+
+      const firstEnrollDate = userEnrollments
+        .map((e: any) => e.enrolled_at)
+        .filter(Boolean)
+        .sort()[0];
+      const joinedAt = profile?.created_at || firstEnrollDate || new Date().toISOString();
+      const joinedAtFormatted = new Date(joinedAt).toLocaleDateString("en-IN", {
         day: "numeric",
         month: "short",
         year: "numeric",
-      }),
-      completedCount,
-      progressPercent,
-      isEligible,
-    };
-  });
+      });
 
-  const totalEnrolled = items.length;
-  const eligibleCount = items.filter((i) => i.isEligible).length;
+      return {
+        userId,
+        studentName,
+        email: profile?.email || "Unknown Email",
+        role: profile?.role || "student",
+        joinedAt,
+        joinedAtFormatted,
+        totalCourses,
+        eligibleCertificates,
+        averageProgress,
+        courses,
+      };
+    }
+  );
 
   return (
     <div className="space-y-6">
@@ -86,127 +174,16 @@ export default async function AdminCertificatesPage() {
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-leaf">
           Academic Credentials
         </p>
-        <h1 className="text-3xl font-black text-forest dark:text-cream">
-          Certificate Management & Issuance
+        <h1 className="text-3xl font-black text-forest dark:text-cream flex items-center gap-3">
+          <Award className="text-amber-500" size={32} /> Certificate Management & Issuance
         </h1>
         <p className="mt-1 text-sm text-ink/60 dark:text-cream/60">
-          Review student course progress, completion thresholds, and digital certificate verification status.
+          Student-centric dashboard for inspecting enrolled courses, monitoring completion thresholds (≥ 70%), and managing digital certificates.
         </p>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-[2rem] bg-white p-5 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
-          <div className="flex items-center justify-between text-amber-500">
-            <Award size={20} />
-            <span className="text-[11px] font-black bg-amber-500/10 px-2.5 py-0.5 rounded-full">
-              70%+ Completed
-            </span>
-          </div>
-          <p className="mt-4 text-xs font-bold uppercase text-ink/50 dark:text-cream/50">
-            Eligible Certificates
-          </p>
-          <p className="text-3xl font-black text-forest dark:text-cream">{eligibleCount}</p>
-        </div>
-
-        <div className="rounded-[2rem] bg-white p-5 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
-          <div className="flex items-center justify-between text-leaf">
-            <UserCheck size={20} />
-            <span className="text-[11px] font-black bg-leaf/10 px-2.5 py-0.5 rounded-full">
-              Active Roster
-            </span>
-          </div>
-          <p className="mt-4 text-xs font-bold uppercase text-ink/50 dark:text-cream/50">
-            Total Enrolled Students
-          </p>
-          <p className="text-3xl font-black text-forest dark:text-cream">{totalEnrolled}</p>
-        </div>
-
-        <div className="rounded-[2rem] bg-white p-5 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
-          <div className="flex items-center justify-between text-blue-500">
-            <ShieldCheck size={20} />
-            <span className="text-[11px] font-black bg-blue-500/10 px-2.5 py-0.5 rounded-full">
-              Automated
-            </span>
-          </div>
-          <p className="mt-4 text-xs font-bold uppercase text-ink/50 dark:text-cream/50">
-            Verification Protocol
-          </p>
-          <p className="text-xl font-black text-forest dark:text-cream">QR Code & Serial Stamp</p>
-        </div>
-      </div>
-
-      {/* Certificates Roster */}
-      <div className="rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
-        <h2 className="text-xl font-black text-forest dark:text-cream flex items-center gap-2">
-          <Award size={20} className="text-leaf" /> Enrolled Students & Completion Status
-        </h2>
-
-        {items.length === 0 ? (
-          <div className="py-12 text-center text-ink/50 dark:text-cream/50">
-            No active student enrollments found yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead>
-                <tr className="border-b border-forest/10 dark:border-white/10 text-ink/50 dark:text-cream/50 text-[11px] font-black uppercase tracking-wider">
-                  <th className="pb-3 pl-2">Student</th>
-                  <th className="pb-3">Course</th>
-                  <th className="pb-3">Enrolled Date</th>
-                  <th className="pb-3">Progress</th>
-                  <th className="pb-3 text-right pr-2">Certificate Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-forest/5 dark:divide-white/5">
-                {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-linen/50 dark:hover:bg-white/5 transition">
-                    <td className="py-3.5 pl-2 font-bold text-forest dark:text-cream">
-                      <div>{item.studentName}</div>
-                      <div className="text-[11px] font-normal text-ink/50 dark:text-cream/50">
-                        {item.email}
-                      </div>
-                    </td>
-                    <td className="py-3.5 font-semibold text-forest dark:text-cream">
-                      {item.courseTitle}
-                    </td>
-                    <td className="py-3.5 text-ink/60 dark:text-cream/60 font-mono text-xs">
-                      {item.enrolledAt}
-                    </td>
-                    <td className="py-3.5">
-                      <div className="w-32 space-y-1">
-                        <div className="flex justify-between text-[11px] font-bold">
-                          <span>{item.progressPercent}%</span>
-                          <span className="text-ink/40">{item.completedCount} lessons</span>
-                        </div>
-                        <div className="h-1.5 w-full rounded-full bg-forest/10 dark:bg-white/10 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              item.isEligible ? "bg-emerald-600" : "bg-amber-500"
-                            }`}
-                            style={{ width: `${Math.max(5, item.progressPercent)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 text-right pr-2">
-                      {item.isEligible ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-black text-white shadow-sm">
-                          <CheckCircle2 size={12} /> Issued / Unlocked
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">
-                          <Clock size={12} /> In Progress
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Interactive Student-Centric Management Client */}
+      <AdminCertificatesClient students={students} />
     </div>
   );
 }

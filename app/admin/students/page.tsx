@@ -26,7 +26,6 @@ export default async function AdminStudentsPage() {
     admin
       .from("lms_profiles")
       .select("id, full_name, email, role, suspended, created_at")
-      .neq("role", "admin")
       .order("created_at", { ascending: false }),
     admin
       .from("lms_enrollments")

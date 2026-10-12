@@ -163,7 +163,12 @@ export function StudentsClient({ initialStudents }: { initialStudents: Profile[]
               </div>
 
               {/* Status */}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {student.role === "admin" && (
+                  <span className="rounded-full bg-forest/10 px-3 py-1 text-xs font-black text-forest dark:bg-white/10 dark:text-cream">
+                    Admin
+                  </span>
+                )}
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-black ${
                     student.suspended
