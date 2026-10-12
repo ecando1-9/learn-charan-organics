@@ -17,13 +17,36 @@ export interface EnrollmentApprovalEmailParams {
   appUrl?: string;
 }
 
+/**
+ * Formats the sender address in industry-standard format:
+ * "Charan Organics Academy <learn@charanorganics.com>"
+ * Supports EMAIL_FROM, RESEND_FROM_EMAIL, and EMAIL_FORM (common typo).
+ */
+export function getEmailFromAddress(): string {
+  const configured =
+    process.env.EMAIL_FROM ||
+    process.env.RESEND_FROM_EMAIL ||
+    process.env.EMAIL_FORM ||
+    "learn@charanorganics.com";
+
+  const trimmed = configured.trim();
+
+  // If already includes a display name, e.g. "Name <email@domain.com>"
+  if (trimmed.includes("<") && trimmed.includes(">")) {
+    return trimmed;
+  }
+
+  // If plain email, wrap with the official Academy display name
+  return `Charan Organics Academy <${trimmed}>`;
+}
+
 export async function sendEnrollmentApprovalEmail({
   studentEmail,
   studentName,
   courses,
   totalAmount,
   utrNumber,
-  appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://learn.charanorganics.com",
+  appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === "development" ? "http://localhost:3000" : "https://learn.charanorganics.com"),
 }: EnrollmentApprovalEmailParams) {
   const apiKey = process.env.RESEND_API_KEY;
 
@@ -37,7 +60,7 @@ export async function sendEnrollmentApprovalEmail({
 
   try {
     const resend = new Resend(apiKey);
-    const fromSender = process.env.RESEND_FROM_EMAIL || "Charan Organics Academy <orders@charanorganics.com>";
+    const fromSender = getEmailFromAddress();
     const coursesListHtml = courses
       .map(
         (c) => `
@@ -187,4 +210,40 @@ function escapeHtml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+export async function sendTestEmail(toEmail: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    return { success: false, error: "RESEND_API_KEY not configured in environment." };
+  }
+  try {
+    const resend = new Resend(apiKey);
+    const fromSender = getEmailFromAddress();
+    const data = await resend.emails.send({
+      from: fromSender,
+      to: [toEmail],
+      subject: "🧪 Test Delivery: Charan Organics Academy Resend Verification",
+      html: `
+        <div style="font-family: -apple-system, sans-serif; padding: 25px; color: #12382a; background-color: #f7f9f6; border-radius: 12px; max-width: 500px; margin: 0 auto; border: 1px solid #e2ebd8;">
+          <h2 style="margin-top: 0; color: #12382a;">Charan Organics Academy</h2>
+          <p style="font-size: 15px; color: #2d3748;">
+            Hello! This confirms that your Resend email setup is <b>100% active and working</b> from both <b>localhost</b> and production.
+          </p>
+          <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px; margin: 15px 0;">
+            <p style="margin: 0; font-size: 13px; color: #065f46; font-weight: bold;">
+              Sender: ${escapeHtml(fromSender)}
+            </p>
+          </div>
+          <p style="font-size: 13px; color: #718096; margin-bottom: 0;">
+            Sent successfully at ${new Date().toLocaleString("en-IN")}.
+          </p>
+        </div>
+      `,
+    });
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("[sendTestEmail] Error:", err);
+    return { success: false, error: err?.message || "Failed to send test email" };
+  }
 }
