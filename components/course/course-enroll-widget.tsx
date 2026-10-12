@@ -67,7 +67,13 @@ export function CourseEnrollWidget({ slug, basePrice, variants = [] }: Props) {
               return (
                 <div
                   key={v.id}
-                  onClick={() => setSelectedPlanId(v.id)}
+                  onClick={() => {
+                    if (isSelected) {
+                      router.push(`/enroll?course=${slug}&plan=${v.id}`);
+                    } else {
+                      setSelectedPlanId(v.id);
+                    }
+                  }}
                   className={`group/plan relative flex items-center justify-between p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
                     isSelected
                       ? "border-emerald-600 bg-emerald-500/10 shadow-sm dark:border-emerald-500 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20"
