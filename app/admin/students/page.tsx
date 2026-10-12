@@ -22,30 +22,16 @@ export default async function AdminStudentsPage() {
 
   const admin = createAdminClient();
 
-  const [requestUsersRes, enrollmentsRes] = await Promise.all([
+  const [profilesRes, enrollmentsRes] = await Promise.all([
     admin
-      .from("lms_enrollment_requests")
-      .select("user_id"),
+      .from("lms_profiles")
+      .select("id, full_name, email, role, suspended, created_at")
+      .neq("role", "admin")
+      .order("created_at", { ascending: false }),
     admin
       .from("lms_enrollments")
       .select("user_id, status"),
   ]);
-
-  const lmsUserIds = Array.from(
-    new Set([
-      ...(requestUsersRes.data ?? []).map((r: any) => r.user_id),
-      ...(enrollmentsRes.data ?? []).map((e: any) => e.user_id),
-    ].filter(Boolean))
-  );
-
-  const profilesRes = lmsUserIds.length > 0
-    ? await admin
-        .from("lms_profiles")
-        .select("id, full_name, email, role, suspended, created_at")
-        .eq("role", "student")
-        .in("id", lmsUserIds)
-        .order("created_at", { ascending: false })
-    : { data: [] };
 
   const rawProfiles = profilesRes.data ?? [];
   const rawEnrollments = enrollmentsRes.data ?? [];

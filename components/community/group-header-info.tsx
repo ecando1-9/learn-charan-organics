@@ -122,7 +122,7 @@ export function GroupHeaderInfo({ group, members, isAdmin, currentUserId }: Grou
       <div className="border-b border-gray-200 dark:border-white/10 bg-[#e9edef] dark:bg-[#202c33] px-3 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between shrink-0 shadow-sm z-10 relative">
         <div className="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" onClick={openDrawer}>
           <a
-            href="/community"
+            href="/community?list=1"
             className="lg:hidden text-emerald-600 dark:text-emerald-400 hover:bg-black/5 p-1.5 -ml-1 rounded-full shrink-0"
             onClick={(e) => e.stopPropagation()}
             title="Back to chats"

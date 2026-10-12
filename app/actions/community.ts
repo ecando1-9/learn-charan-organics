@@ -180,6 +180,7 @@ export async function getMyGroups() {
   if (!user) return { groups: [], isAdmin: false };
 
   const isAdmin = await checkUserIsAdmin(user.id, user.email);
+  const adminClient = createAdminClient();
 
   function withSlug(g: any) {
     const s = (g.slug || g.name || "")
@@ -189,33 +190,94 @@ export async function getMyGroups() {
     return { ...g, slug: s || "group" };
   }
 
-  if (isAdmin) {
-    const adminClient = createAdminClient();
-    const { data } = await adminClient
-      .from("lms_groups")
-      .select("*")
-      .order("created_at", { ascending: false });
-    return { groups: (data ?? []).map(withSlug), isAdmin };
-  }
+  // 1. Fetch all groups
+  const { data: allGroups } = await adminClient
+    .from("lms_groups")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-  const { data: memberRows } = await supabase
-    .from("lms_group_members")
-    .select("group_id")
-    .eq("user_id", user.id);
-
-  const groupIds = Array.from(new Set((memberRows ?? []).map((m: any) => m.group_id).filter(Boolean)));
-
-  if (groupIds.length === 0) {
+  if (!allGroups || allGroups.length === 0) {
     return { groups: [], isAdmin };
   }
 
-  const { data: groups } = await supabase
-    .from("lms_groups")
-    .select("*")
-    .in("id", groupIds)
+  // Find the default official announcement group (Welcome or announcement group)
+  const defaultGroup = allGroups.find(
+    (g: any) =>
+      g.name.toLowerCase().includes("welcome") ||
+      g.name.toLowerCase().includes("announcement") ||
+      g.admin_only_messaging === true
+  ) || allGroups[0];
+
+  let visibleGroups: any[] = [];
+
+  if (isAdmin) {
+    // Admin sees all groups
+    visibleGroups = allGroups;
+  } else {
+    // Make sure student is in default group
+    if (defaultGroup) {
+      await adminClient
+        .from("lms_group_members")
+        .upsert({ group_id: defaultGroup.id, user_id: user.id }, { onConflict: "group_id,user_id" });
+    }
+
+    // For non-admin, find groups user is specifically enrolled in
+    const { data: memberRows } = await supabase
+      .from("lms_group_members")
+      .select("group_id")
+      .eq("user_id", user.id);
+
+    const allowedGroupIds = new Set((memberRows ?? []).map((m: any) => m.group_id).filter(Boolean));
+    if (defaultGroup) {
+      allowedGroupIds.add(defaultGroup.id);
+    }
+
+    visibleGroups = allGroups.filter((g: any) => allowedGroupIds.has(g.id));
+  }
+
+  if (visibleGroups.length === 0) {
+    return { groups: [], isAdmin };
+  }
+
+  // 2. Fetch the latest messages for visible groups to sort by most recent activity
+  const groupIds = visibleGroups.map((g: any) => g.id);
+  const { data: messages } = await adminClient
+    .from("lms_group_messages")
+    .select("group_id, body, file_name, file_type, created_at")
+    .in("group_id", groupIds)
     .order("created_at", { ascending: false });
 
-  return { groups: (groups ?? []).map(withSlug), isAdmin };
+  // Map latest message per group
+  const latestMessageMap = new Map<string, { body: string; created_at: string }>();
+  (messages ?? []).forEach((m: any) => {
+    if (!latestMessageMap.has(m.group_id)) {
+      const preview = m.body?.trim() || (m.file_name ? `📎 ${m.file_name}` : "Shared an attachment");
+      latestMessageMap.set(m.group_id, {
+        body: preview,
+        created_at: m.created_at,
+      });
+    }
+  });
+
+  const enriched = visibleGroups.map((g: any) => {
+    const latest = latestMessageMap.get(g.id);
+    const item = withSlug(g);
+    return {
+      ...item,
+      last_message_text: latest?.body || g.description || "Tap to open chat...",
+      last_message_at: latest?.created_at || g.created_at,
+      has_messages: Boolean(latest),
+    };
+  });
+
+  // Sort groups: latest message coming or sending at the very top!
+  enriched.sort((a: any, b: any) => {
+    const timeA = new Date(a.last_message_at).getTime();
+    const timeB = new Date(b.last_message_at).getTime();
+    return timeB - timeA;
+  });
+
+  return { groups: enriched, isAdmin };
 }
 
 function resolveDisplayName(profile?: { full_name?: string | null; email?: string | null; id?: string }): string {
@@ -349,33 +411,22 @@ export async function getAllStudents() {
 
   const admin = createAdminClient();
 
-  // Find user IDs with active LMS enrollments or enrollment requests or LMS progress
-  const [enrollmentsRes, requestsRes, progressRes] = await Promise.all([
-    admin.from("lms_enrollments").select("user_id, course_id, status"),
-    admin.from("lms_enrollment_requests").select("user_id"),
-    admin.from("lms_progress").select("user_id"),
+  // Get ALL registered students and active enrollments
+  const [profilesRes, enrollmentsRes] = await Promise.all([
+    admin
+      .from("lms_profiles")
+      .select("id, full_name, email, role")
+      .neq("role", "admin")
+      .order("full_name"),
+    admin
+      .from("lms_enrollments")
+      .select("user_id, course_id, status")
+      .eq("status", "active"),
   ]);
 
-  const lmsUserIds = Array.from(
-    new Set([
-      ...(enrollmentsRes.data ?? []).map((e: any) => e.user_id),
-      ...(requestsRes.data ?? []).map((r: any) => r.user_id),
-      ...(progressRes.data ?? []).map((p: any) => p.user_id),
-    ].filter(Boolean))
-  );
+  const profiles = profilesRes.data ?? [];
+  const enrollments = enrollmentsRes.data ?? [];
 
-  if (lmsUserIds.length === 0) {
-    return [];
-  }
-
-  // Only get profiles for actual LMS students!
-  const { data: profiles } = await admin
-    .from("lms_profiles")
-    .select("id, full_name, email, role")
-    .in("id", lmsUserIds)
-    .order("full_name");
-
-  const enrollments = (enrollmentsRes.data ?? []).filter((e: any) => e.status === "active");
   const courseIds = Array.from(new Set(enrollments.map((e: any) => e.course_id).filter(Boolean)));
   const courseMap = new Map<string, string>();
 
@@ -388,7 +439,7 @@ export async function getAllStudents() {
     (courses ?? []).forEach((c: any) => courseMap.set(c.id, c.title));
   }
 
-  return (profiles ?? []).map((p: any) => {
+  return profiles.map((p: any) => {
     const userEnrolls = enrollments.filter((e: any) => e.user_id === p.id);
     const displayName = resolveDisplayName(p);
     return {

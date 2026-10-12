@@ -7,6 +7,23 @@ import { Users2, Search, Plus, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createGroup } from "@/app/actions/community";
 
+function formatChatTime(dateStr?: string) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const now = new Date();
+  if (isNaN(d.getTime())) return "";
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) {
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  }
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -118,11 +135,18 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
                     {initials}
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    <div className="font-bold text-gray-900 dark:text-cream truncate text-sm">
-                      {group.name}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="font-bold text-gray-900 dark:text-cream truncate text-sm">
+                        {group.name}
+                      </div>
+                      {group.last_message_at && (
+                        <span className="text-[10px] font-semibold text-gray-400 dark:text-cream/40 shrink-0">
+                          {formatChatTime(group.last_message_at)}
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-cream/60 truncate mt-0.5">
-                      {group.description || "Tap to open chat..."}
+                      {group.last_message_text || group.description || "Tap to open chat..."}
                     </div>
                   </div>
                 </Link>
