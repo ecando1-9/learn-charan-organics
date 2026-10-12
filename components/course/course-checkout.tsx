@@ -243,8 +243,28 @@ export function CourseCheckout({
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
+    if (file.size > MAX_SIZE) {
+      setError("Your file has more than 2 MB. Max 2 MB allowed.");
+      setProofFile(null);
+      setProofPreview(null);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
+    // Clear previous file size error if any
+    setError((prev) => (prev.includes("2 MB") ? "" : prev));
+
     try {
       const processed = await compressImageIfNeeded(file);
+      if (processed.size > MAX_SIZE) {
+        setError("Your file has more than 2 MB. Max 2 MB allowed.");
+        setProofFile(null);
+        setProofPreview(null);
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
       setProofFile(processed);
       setProofPreview(URL.createObjectURL(processed));
     } catch {
@@ -414,6 +434,11 @@ export function CourseCheckout({
     }
     if (!utr.trim() && !proofFile) {
       setError("Please enter your 12-digit UPI / UTR transaction number or upload a screenshot.");
+      return;
+    }
+
+    if (proofFile && proofFile.size > 2 * 1024 * 1024) {
+      setError("Your file has more than 2 MB. Max 2 MB allowed.");
       return;
     }
 
@@ -1016,9 +1041,14 @@ export function CourseCheckout({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-forest dark:text-cream uppercase tracking-wide">
-                    2. Payment Screenshot (Recommended)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-forest dark:text-cream uppercase tracking-wide">
+                      2. Payment Screenshot (Recommended)
+                    </label>
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                      Max 2 MB
+                    </span>
+                  </div>
                   <input
                     ref={fileRef}
                     type="file"
@@ -1027,23 +1057,29 @@ export function CourseCheckout({
                     onChange={handleFileChange}
                   />
                   {proofPreview ? (
-                    <div className="relative mt-1 rounded-2xl overflow-hidden border border-forest/15 dark:border-white/15">
+                    <div className="relative mt-1 rounded-2xl overflow-hidden border border-forest/15 dark:border-white/15 bg-linen/30">
                       <img
                         src={proofPreview}
                         alt="Payment screenshot preview"
                         className="w-full max-h-44 object-contain bg-black/5"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProofFile(null);
-                          setProofPreview(null);
-                        }}
-                        className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-white/90 shadow hover:bg-white text-forest transition"
-                        title="Remove screenshot"
-                      >
-                        <X size={13} />
-                      </button>
+                      <div className="p-2 bg-white/95 dark:bg-forest/95 backdrop-blur-xs flex items-center justify-between text-xs border-t border-forest/10 dark:border-white/10">
+                        <span className="truncate max-w-[210px] text-ink/75 dark:text-cream/75 text-[11px] font-semibold">
+                          {proofFile?.name} {proofFile?.size ? `(${(proofFile.size / (1024 * 1024)).toFixed(2)} MB)` : ""}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProofFile(null);
+                            setProofPreview(null);
+                            if (fileRef.current) fileRef.current.value = "";
+                          }}
+                          className="text-red-500 hover:text-red-700 font-bold text-[11px] flex items-center gap-1 cursor-pointer shrink-0"
+                          title="Remove screenshot"
+                        >
+                          <X size={13} /> Remove
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -1053,7 +1089,7 @@ export function CourseCheckout({
                     >
                       <Upload size={18} className="text-leaf" />
                       <span className="font-bold text-xs">Click to upload payment screenshot</span>
-                      <span className="text-[10px] text-ink/40 dark:text-cream/40">PNG, JPG or screenshot</span>
+                      <span className="text-[10px] text-ink/40 dark:text-cream/40">PNG, JPG or screenshot · Max 2 MB allowed</span>
                     </button>
                   )}
                 </div>

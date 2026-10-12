@@ -40,6 +40,11 @@ export async function submitEnrollmentRequest(formData: FormData) {
     const selectedAll = formData.get("selected_all") === "true";
     const proofFile = formData.get("proof_file") as File | null;
 
+    const MAX_PROOF_SIZE = 2 * 1024 * 1024; // 2 MB
+    if (proofFile && proofFile.size > MAX_PROOF_SIZE) {
+      return { error: "Your file has more than 2 MB. Max 2 MB allowed." };
+    }
+
     let paymentProofUrl: string | null = null;
     const admin = createAdminClient();
 
