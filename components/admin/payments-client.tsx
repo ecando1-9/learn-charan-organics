@@ -112,6 +112,73 @@ function ProofModal({
   );
 }
 
+function CoursesModal({
+  courses,
+  studentName,
+  totalAmount,
+  onClose,
+}: {
+  courses: { name: string; amount_inr: number }[];
+  studentName: string;
+  totalAmount: number;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-lg w-full rounded-[2rem] bg-white dark:bg-[#111b21] shadow-2xl overflow-hidden border border-forest/10 dark:border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10 bg-linen/50 dark:bg-white/5">
+          <div>
+            <p className="font-black text-forest dark:text-cream text-lg">
+              Selected Courses ({courses.length})
+            </p>
+            <p className="text-xs text-ink/60 dark:text-cream/60">
+              Student: <b className="text-forest dark:text-cream">{studentName}</b>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="grid size-8 place-items-center rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 transition text-ink dark:text-cream"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 max-h-[60vh] overflow-y-auto space-y-2.5">
+          {courses.map((c, i) => (
+            <div
+              key={`${c.name}-${i}`}
+              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-linen/60 dark:bg-white/5 border border-forest/5 dark:border-white/5"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="grid size-6 place-items-center rounded-full bg-forest/10 text-forest dark:bg-white/10 dark:text-cream text-[11px] font-black shrink-0">
+                  {i + 1}
+                </span>
+                <span className="text-xs sm:text-sm font-bold text-forest dark:text-cream truncate">
+                  🌿 {c.name}
+                </span>
+              </div>
+              <span className="font-black text-xs sm:text-sm text-leaf shrink-0">
+                {formatINR(c.amount_inr)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-4 bg-linen dark:bg-white/5 border-t border-forest/10 dark:border-white/10 flex items-center justify-between">
+          <span className="text-xs font-bold text-ink/60 dark:text-cream/60 uppercase">Total Amount</span>
+          <span className="text-lg font-black text-forest dark:text-cream">{formatINR(totalAmount)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PaymentsClient({
   initialRequests,
 }: {
@@ -121,6 +188,11 @@ export function PaymentsClient({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "approved" | "rejected" | "pending">("all");
   const [proofModal, setProofModal] = useState<{ url: string; name: string } | null>(null);
+  const [coursesModal, setCoursesModal] = useState<{
+    courses: { name: string; amount_inr: number }[];
+    studentName: string;
+    totalAmount: number;
+  } | null>(null);
 
   // Action states per request
   const [actionLoading, setActionLoading] = useState<{ [id: string]: "approve" | "reject" | null }>({});
@@ -273,22 +345,47 @@ export function PaymentsClient({
                   </div>
 
                   {/* Course Details Box */}
-                  <div className="rounded-2xl bg-linen dark:bg-white/5 p-4 border border-forest/5 dark:border-white/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-bold text-ink/50 dark:text-cream/50 uppercase tracking-wider">Requested Courses</p>
-                      <span className="rounded-full bg-forest/10 dark:bg-white/10 px-2.5 py-0.5 text-xs font-black text-forest dark:text-cream">
-                        {r.course_count} {r.course_count === 1 ? "Course" : "Courses"}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5 text-sm font-semibold text-forest dark:text-cream divide-y divide-forest/5 dark:divide-white/5">
-                      {(r.course_details.length > 0 ? r.course_details : [{ name: r.course_title, amount_inr: r.amount_inr }]).map((course) => (
-                        <div key={course.name} className="flex justify-between gap-3 pt-1.5 first:pt-0">
-                          <span className="truncate">🌿 {course.name}</span>
-                          <span className="font-black text-leaf shrink-0">{formatINR(course.amount_inr)}</span>
+                  {(() => {
+                    const courseList = r.course_details.length > 0 ? r.course_details : [{ name: r.course_title, amount_inr: r.amount_inr }];
+                    const displayLimit = 2;
+                    const visibleCourses = courseList.slice(0, displayLimit);
+                    const remainingCount = courseList.length - displayLimit;
+
+                    return (
+                      <div className="rounded-2xl bg-linen dark:bg-white/5 p-4 border border-forest/5 dark:border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-ink/50 dark:text-cream/50 uppercase tracking-wider">Requested Courses</p>
+                          <span className="rounded-full bg-forest/10 dark:bg-white/10 px-2.5 py-0.5 text-xs font-black text-forest dark:text-cream">
+                            {r.course_count} {r.course_count === 1 ? "Course" : "Courses"}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                        <div className="space-y-1.5 text-sm font-semibold text-forest dark:text-cream divide-y divide-forest/5 dark:divide-white/5">
+                          {visibleCourses.map((course, idx) => (
+                            <div key={`${course.name}-${idx}`} className="flex justify-between gap-3 pt-1.5 first:pt-0">
+                              <span className="truncate">🌿 {course.name}</span>
+                              <span className="font-black text-leaf shrink-0">{formatINR(course.amount_inr)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {remainingCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCoursesModal({
+                                courses: courseList,
+                                studentName: name,
+                                totalAmount: r.amount_inr,
+                              })
+                            }
+                            className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-forest/10 hover:bg-forest/15 dark:bg-white/10 dark:hover:bg-white/15 text-xs font-black text-forest dark:text-cream transition border border-forest/15 dark:border-white/15"
+                          >
+                            <span>+{remainingCount} more {remainingCount === 1 ? "course" : "courses"}</span>
+                            <span className="text-[11px] font-bold text-leaf dark:text-emerald-400 underline underline-offset-2">(Click to View All)</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* UTR + UPI */}
                   <div className="grid grid-cols-2 gap-3">
@@ -456,6 +553,16 @@ export function PaymentsClient({
           url={proofModal.url}
           name={proofModal.name}
           onClose={() => setProofModal(null)}
+        />
+      )}
+
+      {/* Selected courses breakdown modal */}
+      {coursesModal && (
+        <CoursesModal
+          courses={coursesModal.courses}
+          studentName={coursesModal.studentName}
+          totalAmount={coursesModal.totalAmount}
+          onClose={() => setCoursesModal(null)}
         />
       )}
     </div>

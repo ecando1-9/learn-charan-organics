@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
 import { createClient } from "@/lib/supabase/server";
+import { CourseReviews } from "@/components/course/course-reviews";
 
 export const dynamic = "force-dynamic";
 
@@ -423,6 +424,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                 </div>
               </div>
             )}
+
+            {/* Student Reviews & Experiences */}
+            <CourseReviews courseTitle={course.title} courseSlug={course.slug} />
           </div>
 
           {/* Materials */}

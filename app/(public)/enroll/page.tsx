@@ -61,6 +61,7 @@ export default function EnrollPage() {
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  const [showAllSummary, setShowAllSummary] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -606,18 +607,38 @@ export default function EnrollPage() {
                 {/* Selected Courses Breakdown */}
                 {selectedCourses.length > 0 ? (
                   <div className="space-y-2 rounded-2xl bg-linen/50 dark:bg-white/5 p-3.5 text-xs">
-                    <p className="font-bold text-forest dark:text-cream mb-1">Order Summary:</p>
-                    {selectedCourses.map((c) => {
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="font-bold text-forest dark:text-cream">Order Summary:</p>
+                      {selectedCourses.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllSummary(!showAllSummary)}
+                          className="text-[11px] font-bold text-leaf hover:underline"
+                        >
+                          {showAllSummary ? "Show Less" : `View All (${selectedCourses.length})`}
+                        </button>
+                      )}
+                    </div>
+                    {(showAllSummary ? selectedCourses : selectedCourses.slice(0, 3)).map((c) => {
                       const activeVar = getCourseActiveVariant(c);
                       return (
                         <div key={c.id} className="flex justify-between items-center text-ink/75 dark:text-cream/75">
                           <span className="truncate max-w-[200px]">
                             • {c.title} <span className="text-[10px] text-ink/40">({activeVar.name})</span>
                           </span>
-                          <span className="font-bold text-forest dark:text-cream">₹{activeVar.price.toLocaleString("en-IN")}</span>
+                          <span className="font-bold text-forest dark:text-cream shrink-0">₹{activeVar.price.toLocaleString("en-IN")}</span>
                         </div>
                       );
                     })}
+                    {!showAllSummary && selectedCourses.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllSummary(true)}
+                        className="w-full mt-1.5 py-1.5 text-center text-[11px] font-bold text-forest dark:text-cream bg-forest/5 dark:bg-white/10 rounded-xl hover:bg-forest/10 transition"
+                      >
+                        +{selectedCourses.length - 3} more courses (Click to View All)
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-2xl">

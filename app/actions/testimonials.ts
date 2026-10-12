@@ -15,7 +15,7 @@ export interface StudentReview {
   isNew?: boolean;
 }
 
-export async function getTestimonialReviews(): Promise<StudentReview[]> {
+export async function getTestimonialReviews(courseFilter?: string): Promise<StudentReview[]> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
@@ -23,13 +23,13 @@ export async function getTestimonialReviews(): Promise<StudentReview[]> {
       .select("*")
       .eq("published", true)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(30);
 
     if (error || !data || data.length === 0) {
       return defaultTestimonials.map((t) => ({ ...t, rating: 5 }));
     }
 
-    return data.map((row: any) => ({
+    const reviews: StudentReview[] = data.map((row: any) => ({
       id: row.id,
       name: row.name,
       role: row.role || "Student Maker",
@@ -38,6 +38,16 @@ export async function getTestimonialReviews(): Promise<StudentReview[]> {
       rating: row.rating || 5,
       created_at: row.created_at,
     }));
+
+    if (courseFilter && courseFilter.trim()) {
+      const q = courseFilter.toLowerCase().trim();
+      const matched = reviews.filter(
+        (r) => r.role?.toLowerCase().includes(q) || r.quote?.toLowerCase().includes(q)
+      );
+      if (matched.length > 0) return matched;
+    }
+
+    return reviews;
   } catch {
     return defaultTestimonials.map((t) => ({ ...t, rating: 5 }));
   }
@@ -47,7 +57,9 @@ export async function submitTestimonialReview(
   name: string,
   role: string,
   quote: string,
-  rating = 5
+  rating = 5,
+  courseTitle?: string,
+  courseSlug?: string
 ) {
   try {
     const supabase = await createClient();
@@ -63,10 +75,14 @@ export async function submitTestimonialReview(
       .substring(0, 2)
       .toUpperCase();
 
+    const formattedRole = courseTitle && courseTitle.trim()
+      ? `${role.trim() || "Student"} • ${courseTitle.trim()}`
+      : role.trim() || "Student Maker";
+
     const payload: any = {
       user_id: user?.id ?? null,
       name: name.trim(),
-      role: role.trim() || "Student Maker",
+      role: formattedRole,
       quote: quote.trim(),
       rating,
       avatar: initials || "ST",
@@ -82,6 +98,9 @@ export async function submitTestimonialReview(
     if (error) return { error: error.message };
 
     revalidatePath("/");
+    if (courseSlug) {
+      revalidatePath(`/courses/${courseSlug}`);
+    }
     return { success: true, review: data };
   } catch (err: any) {
     return { error: err?.message || "Failed to submit review" };
