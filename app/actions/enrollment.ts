@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ensureLmsProfile } from "@/lib/supabase/profile";
 import { allocateCourseAmounts } from "@/lib/enrollment-amounts";
+import { PAYMENT_CONFIG } from "@/lib/payment-config";
 
 async function requireAdminClient() {
   const supabase = await createClient();
@@ -59,7 +60,7 @@ export async function submitEnrollmentRequest(formData: FormData) {
       course_title: courseTitles,
       course_ids: courseIds,
       amount_inr: amount,
-      upi_id: "8985482084@hdfc",
+      upi_id: PAYMENT_CONFIG.upiId,
       utr_number: utrNumber,
       payment_proof_url: paymentProofUrl,
       selected_all: selectedAll,
