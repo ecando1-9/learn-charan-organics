@@ -108,7 +108,7 @@ export async function approveEnrollment(requestId: string) {
   if (courseIds.length > 0) {
     const { data: courses } = await admin
       .from("lms_courses")
-      .select("id, title, slug, price_inr")
+      .select("id, title, slug, price_inr, thumbnail_url")
       .in("id", courseIds);
 
     fetchedCourses = courses ?? [];
@@ -178,9 +178,11 @@ export async function approveEnrollment(requestId: string) {
         title: c.title,
         price: Number(c.price_inr) || 0,
         slug: c.slug,
+        thumbnail_url: c.thumbnail_url || null,
       })),
       totalAmount: Number(request.amount_inr) || 0,
       utrNumber: request.utr_number,
+      requestId,
     }).catch((err) => {
       console.error("[Email Notification] Could not send approval email:", err);
     });
