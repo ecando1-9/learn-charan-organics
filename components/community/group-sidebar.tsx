@@ -129,17 +129,6 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
               );
             })
           )}
-
-          {/* Floating "+" button for admin — visible on larger screens to avoid mobile nav clash */}
-          {isAdmin && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              title="Create New Group"
-              className="hidden sm:flex sticky bottom-4 right-4 ml-auto mr-4 items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-lg px-4 py-2.5 text-xs font-bold transition z-10"
-            >
-              <Plus size={16} /> Create Group
-            </button>
-          )}
         </div>
       </div>
 
