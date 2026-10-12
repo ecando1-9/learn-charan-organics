@@ -37,14 +37,14 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
   }
 
   const hiddenCount = courses.filter((c) => !c.published).length;
-  const paidCount = courses.filter((c) => c.price_inr > 0 || Boolean(c.bunny_video_id)).length;
-  const freeCount = courses.filter((c) => c.price_inr === 0 && !c.bunny_video_id).length;
+  const freeCount = courses.filter((c) => Boolean((c as any).is_free) || Number(c.price_inr) === 0).length;
+  const paidCount = courses.filter((c) => !Boolean((c as any).is_free) && Number(c.price_inr) > 0).length;
 
   const filteredCourses = courses.filter((c) => {
     if (activeTab === "hidden") return !c.published;
-    const isPremium = c.price_inr > 0 || Boolean(c.bunny_video_id);
-    if (activeTab === "paid") return isPremium;
-    if (activeTab === "free") return !isPremium;
+    const isFree = Boolean((c as any).is_free) || Number(c.price_inr) === 0;
+    if (activeTab === "paid") return !isFree;
+    if (activeTab === "free") return isFree;
     return true;
   });
 

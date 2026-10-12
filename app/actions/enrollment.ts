@@ -154,10 +154,25 @@ export async function approveEnrollment(requestId: string) {
     .eq("id", request.user_id)
     .maybeSingle();
 
-  if (profile?.email) {
+  let studentEmail = profile?.email;
+  let studentName = profile?.full_name;
+
+  if (!studentEmail && request.user_id) {
+    try {
+      const { data: authUserData } = await admin.auth.admin.getUserById(request.user_id);
+      studentEmail = authUserData?.user?.email ?? null;
+      if (!studentName && authUserData?.user?.user_metadata) {
+        studentName = (authUserData.user.user_metadata.full_name || authUserData.user.user_metadata.name) as string;
+      }
+    } catch (authErr) {
+      console.error("[Enrollment] Error fetching auth user email:", authErr);
+    }
+  }
+
+  if (studentEmail) {
     sendEnrollmentApprovalEmail({
-      studentEmail: profile.email,
-      studentName: profile.full_name || profile.email.split("@")[0],
+      studentEmail,
+      studentName: studentName || studentEmail.split("@")[0] || "Valued Learner",
       courses: fetchedCourses.map((c: any) => ({
         id: c.id,
         title: c.title,

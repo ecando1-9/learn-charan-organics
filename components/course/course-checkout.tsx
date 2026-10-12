@@ -23,10 +23,15 @@ import {
   Award,
   Check,
   ExternalLink,
+  Lock,
+  Eye,
+  EyeOff,
+  User as UserIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { submitEnrollmentRequest } from "@/app/actions/enrollment";
+import { syncUserProfile } from "@/app/actions/sync-profile";
 import {
   CourseDurationVariant,
   getSelectedVariant,
@@ -117,6 +122,24 @@ export function CourseCheckout({
   const [error, setError] = useState("");
   const [showOtherCourses, setShowOtherCourses] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Authentication State & Modal
+  const [authenticated, setAuthenticated] = useState(isAuthenticated);
+  const [currentUserEmail, setCurrentUserEmail] = useState(userEmail);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authTab, setAuthTab] = useState<"login" | "register">("login");
+  const [authFullName, setAuthFullName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAuthenticated(isAuthenticated);
+    setCurrentUserEmail(userEmail);
+  }, [isAuthenticated, userEmail]);
 
   // Helper to get active variant for a course
   function getCourseActiveVariant(c: CheckoutCourse): CourseDurationVariant {
@@ -228,6 +251,95 @@ export function CourseCheckout({
     ? window.location.pathname + window.location.search
     : `/enroll${initialPreselectSlug ? `?course=${initialPreselectSlug}` : ""}`;
 
+  async function handleModalAuth(e: React.FormEvent) {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError(null);
+    setAuthSuccessMsg(null);
+
+    const supabase = createClient();
+
+    try {
+      if (authTab === "register") {
+        const { data, error: signUpErr } = await supabase.auth.signUp({
+          email: authEmail.trim(),
+          password: authPassword,
+          options: {
+            data: { full_name: authFullName.trim() },
+            emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback?next=${encodeURIComponent(checkoutUrl)}`,
+          },
+        });
+        if (signUpErr) {
+          setAuthError(signUpErr.message);
+          setAuthLoading(false);
+          return;
+        }
+        if (data.user) {
+          try {
+            await syncUserProfile();
+          } catch (_) {}
+        }
+        if (data.session) {
+          setAuthenticated(true);
+          setCurrentUserEmail(data.user?.email || authEmail.trim());
+          setShowAuthModal(false);
+          setAuthLoading(false);
+          router.refresh();
+          return;
+        }
+        setAuthSuccessMsg("Account created! You can now sign in with your credentials.");
+        setAuthTab("login");
+        setAuthLoading(false);
+        return;
+      }
+
+      // Login
+      const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: authEmail.trim(),
+        password: authPassword,
+      });
+
+      if (signInErr) {
+        setAuthError(signInErr.message);
+        setAuthLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        try {
+          await syncUserProfile();
+        } catch (_) {}
+      }
+
+      setAuthenticated(true);
+      setCurrentUserEmail(data.user?.email || authEmail.trim());
+      setShowAuthModal(false);
+      setAuthLoading(false);
+      router.refresh();
+    } catch (err: any) {
+      setAuthError(err?.message || "Authentication failed. Please try again.");
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleModalGoogleLogin() {
+    setAuthLoading(true);
+    setAuthError(null);
+    const supabase = createClient();
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("authRedirectNext", checkoutUrl);
+    }
+    const { error: oAuthErr } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${origin}/auth/callback` },
+    });
+    if (oAuthErr) {
+      setAuthError(oAuthErr.message);
+      setAuthLoading(false);
+    }
+  }
+
   async function handleSubmit() {
     if (selected.size === 0) {
       setError("Please select at least one course to enroll.");
@@ -235,6 +347,12 @@ export function CourseCheckout({
     }
     if (!utr.trim() && !proofFile) {
       setError("Please enter your 12-digit UPI / UTR transaction number or upload a screenshot.");
+      return;
+    }
+
+    if (!authenticated) {
+      setShowAuthModal(true);
+      setError("Please sign in or register to link your enrollment to your student account.");
       return;
     }
 
@@ -247,7 +365,9 @@ export function CourseCheckout({
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setError("Please log in to your student account first so this enrollment is linked to your dashboard.");
+      setAuthenticated(false);
+      setShowAuthModal(true);
+      setError("Please sign in to your student account so this enrollment is linked to your dashboard.");
       setSubmitting(false);
       return;
     }
@@ -654,32 +774,54 @@ export function CourseCheckout({
             <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-5">
 
               {/* Account Status */}
-              {isAuthenticated ? (
-                <div className="flex items-center gap-2 rounded-2xl bg-leaf/10 border border-leaf/20 px-3 py-1.5 text-xs font-semibold text-leaf">
-                  <CheckCircle2 size={14} className="shrink-0" />
-                  <span className="truncate">Enrolling as <strong>{userEmail}</strong></span>
+              {authenticated ? (
+                <div className="flex items-center justify-between rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 px-3.5 py-2.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                  <div className="flex items-center gap-2 min-w-0 pr-1">
+                    <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                    <span className="truncate">Enrolling as <strong>{currentUserEmail}</strong></span>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full shrink-0">
+                    Logged In ✓
+                  </span>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs space-y-1">
-                  <p className="font-bold text-amber-900 dark:text-amber-200">
-                    Student Login Recommended
-                  </p>
-                  <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
-                    Sign in so your course automatically unlocks under your student dashboard:
+                <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-3.5 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                      <Lock size={13} className="text-amber-600" /> Student Account Required
+                    </p>
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                      Step 1 of 2
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                    Please log in or create an account so this course, formulation formulas, and certificate unlock in your dashboard:
                   </p>
                   <div className="flex gap-2 pt-1">
-                    <Link
-                      href={`/login?redirectTo=${encodeURIComponent(checkoutUrl)}`}
-                      className="px-3 py-1 rounded-full bg-forest text-white text-[11px] font-bold hover:bg-leaf transition"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthTab("login");
+                        setAuthError(null);
+                        setAuthSuccessMsg(null);
+                        setShowAuthModal(true);
+                      }}
+                      className="px-4 py-1.5 rounded-full bg-forest text-white text-[11px] font-bold hover:bg-leaf transition cursor-pointer shadow-xs"
                     >
-                      Log In
-                    </Link>
-                    <Link
-                      href={`/register?redirectTo=${encodeURIComponent(checkoutUrl)}`}
-                      className="px-3 py-1 rounded-full border border-forest/20 text-forest dark:text-cream text-[11px] font-bold hover:bg-forest/5 transition"
+                      Sign In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthTab("register");
+                        setAuthError(null);
+                        setAuthSuccessMsg(null);
+                        setShowAuthModal(true);
+                      }}
+                      className="px-4 py-1.5 rounded-full border border-forest/20 text-forest dark:text-cream text-[11px] font-bold hover:bg-forest/5 transition cursor-pointer"
                     >
-                      Register
-                    </Link>
+                      Create Free Account
+                    </button>
                   </div>
                 </div>
               )}
@@ -874,6 +1016,206 @@ export function CourseCheckout({
 
         </div>
       </div>
+
+      {/* ══════════════ AUTH MODAL POPUP ══════════════ */}
+      {showAuthModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => {
+            setShowAuthModal(false);
+            setAuthError(null);
+            setAuthSuccessMsg(null);
+          }}
+        >
+          <div
+            className="relative w-full max-w-md rounded-3xl bg-white dark:bg-stone-900 border border-forest/15 dark:border-white/10 shadow-2xl p-6 sm:p-7 space-y-4 max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowAuthModal(false);
+                setAuthError(null);
+                setAuthSuccessMsg(null);
+              }}
+              className="absolute right-4 top-4 grid size-8 place-items-center rounded-full bg-forest/5 hover:bg-forest/10 dark:bg-white/10 text-forest dark:text-cream transition cursor-pointer"
+              title="Close"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Header */}
+            <div className="text-center space-y-1.5 pt-1">
+              <div className="mx-auto size-12 rounded-2xl bg-forest/5 dark:bg-white/10 grid place-items-center mb-2">
+                <img
+                  src="https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png"
+                  alt="Charan Organics"
+                  className="size-8 object-contain"
+                />
+              </div>
+              <h3 className="text-xl font-black text-forest dark:text-cream">
+                {authTab === "login" ? "Sign In to Your Account" : "Create Student Account"}
+              </h3>
+              <p className="text-xs text-ink/60 dark:text-cream/60 max-w-xs mx-auto">
+                {authTab === "login"
+                  ? "Log in to link your payment and unlock immediate course access."
+                  : "Sign up in 30 seconds to receive your credentials and course access."}
+              </p>
+            </div>
+
+            {/* Tabs */}
+            <div className="grid grid-cols-2 p-1 rounded-2xl bg-forest/5 dark:bg-white/5 border border-forest/10 dark:border-white/10 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthTab("login");
+                  setAuthError(null);
+                  setAuthSuccessMsg(null);
+                }}
+                className={`py-2 rounded-xl transition cursor-pointer ${
+                  authTab === "login"
+                    ? "bg-white text-forest shadow-xs dark:bg-stone-800 dark:text-cream"
+                    : "text-ink/60 dark:text-cream/60 hover:text-forest"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthTab("register");
+                  setAuthError(null);
+                  setAuthSuccessMsg(null);
+                }}
+                className={`py-2 rounded-xl transition cursor-pointer ${
+                  authTab === "register"
+                    ? "bg-white text-forest shadow-xs dark:bg-stone-800 dark:text-cream"
+                    : "text-ink/60 dark:text-cream/60 hover:text-forest"
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+
+            {/* Google OAuth Button */}
+            <button
+              type="button"
+              disabled={authLoading}
+              onClick={handleModalGoogleLogin}
+              className="flex w-full items-center justify-center gap-3 rounded-2xl border border-forest/15 dark:border-white/12 bg-white dark:bg-white/[0.06] px-4 py-2.5 text-xs font-bold text-ink dark:text-cream shadow-xs transition hover:bg-forest/5 disabled:opacity-60 cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 48 48">
+                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+                <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+              </svg>
+              <span>Continue with Google</span>
+            </button>
+
+            <div className="relative flex items-center gap-3">
+              <div className="flex-1 h-px bg-forest/10 dark:bg-white/10" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ink/40 dark:text-cream/40">
+                Or with Email
+              </span>
+              <div className="flex-1 h-px bg-forest/10 dark:bg-white/10" />
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleModalAuth} className="space-y-3">
+              {authTab === "register" && (
+                <div>
+                  <label className="block text-[11px] font-bold text-forest dark:text-cream mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    placeholder="e.g. Priyadarshini Sharma"
+                    className="w-full rounded-2xl border border-forest/15 bg-linen px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-leaf dark:bg-white/5 dark:border-white/15 dark:text-cream"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-forest dark:text-cream mb-1">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="student@example.com"
+                  className="w-full rounded-2xl border border-forest/15 bg-linen px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-leaf dark:bg-white/5 dark:border-white/15 dark:text-cream"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-forest dark:text-cream mb-1">
+                  Password *
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type={showAuthPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="Enter password (min 6 characters)"
+                    className="w-full rounded-2xl border border-forest/15 bg-linen px-3.5 py-2.5 pr-10 text-xs font-semibold outline-none focus:border-leaf dark:bg-white/5 dark:border-white/15 dark:text-cream"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAuthPassword(!showAuthPassword)}
+                    className="absolute right-3 text-ink/40 hover:text-forest dark:text-cream/40 cursor-pointer"
+                  >
+                    {showAuthPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {authError && (
+                <div className="rounded-xl bg-red-50 p-2.5 text-xs font-semibold text-red-600 dark:bg-red-950/30 dark:text-red-400 flex items-center gap-2">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              {authSuccessMsg && (
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>{authSuccessMsg}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-forest hover:bg-leaf py-3 text-xs font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer"
+              >
+                {authLoading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Please wait...</span>
+                  </>
+                ) : authTab === "login" ? (
+                  <span>Sign In & Continue Checkout</span>
+                ) : (
+                  <span>Create Account & Continue</span>
+                )}
+              </button>
+            </form>
+
+            <p className="text-[10px] text-center text-ink/40 dark:text-cream/40 pt-1">
+              🔒 Secured by Supabase Auth &middot; Charan Organics Academy
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
