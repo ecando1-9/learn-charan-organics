@@ -3,6 +3,16 @@ import { ArrowRight, Play } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { FreeClass } from "@/lib/types";
 
+function extractYouTubeId(url: string | null | undefined): string {
+  if (!url) return "";
+  return (
+    url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1] ??
+    url.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1] ??
+    url.match(/embed\/([a-zA-Z0-9_-]+)/)?.[1] ??
+    ""
+  );
+}
+
 async function getFreeClasses(): Promise<FreeClass[]> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -11,7 +21,27 @@ async function getFreeClasses(): Promise<FreeClass[]> {
     .eq("published", true)
     .order("sort_order", { ascending: true })
     .limit(6);
-  return (data ?? []) as FreeClass[];
+
+  const standalone = (data ?? []) as FreeClass[];
+  if (standalone.length > 0) return standalone;
+
+  const { data: freeCourses } = await supabase
+    .from("lms_courses")
+    .select("id, title, description, youtube_url, thumbnail_url")
+    .eq("published", true)
+    .or("is_free.eq.true,price_inr.eq.0")
+    .limit(6);
+
+  return (freeCourses ?? []).map((c) => ({
+    id: c.id,
+    title: c.title.trim(),
+    description: c.description || null,
+    youtube_video_id: extractYouTubeId(c.youtube_url),
+    thumbnail_url: c.thumbnail_url || null,
+    sort_order: 1,
+    published: true,
+    created_at: new Date().toISOString(),
+  }));
 }
 
 export async function FreeClassesStrip() {

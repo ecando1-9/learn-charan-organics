@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
-import { testimonials } from "@/lib/data";
 import { JoinAcademyCta } from "@/components/home/join-academy-cta";
 import { FreeClassesStrip } from "@/components/home/free-classes-strip";
 import { getPublishedCourses, getUserEnrolledCourseIds } from "@/lib/course-data";

@@ -52,11 +52,7 @@ export const diplomaCurriculum = {
   benefits: ["269+ Product Formulations", "Beginner Friendly", "Online & Offline Training", "Business Guidance", "Certificate Provided", "Lifetime Support", "Product Manufacturing Knowledge", "Branding & Selling Guidance"]
 };
 
-export const testimonials = [
-  { name: "Student", role: "Academy learner", quote: "The course videos are practical and easy to follow for herbal cosmetic making.", avatar: "ST" },
-  { name: "Maker", role: "Product entrepreneur", quote: "The structured curriculum helps me understand product categories and formulation flow.", avatar: "MK" },
-  { name: "Learner", role: "Beginner", quote: "The lessons are useful for starting small-batch product manufacturing.", avatar: "LR" }
-];
+export const testimonials: { name: string; role: string; quote: string; avatar: string }[] = [];
 
 export const analytics = [
   { month: "Jan", revenue: 0, students: 0, enrollments: 0 },

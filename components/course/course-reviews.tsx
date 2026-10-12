@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Star, MessageSquareHeart, Plus, CheckCircle2, Sparkles, Loader2, Award, UserRound } from "lucide-react";
+import { Star, MessageSquareHeart, Plus, CheckCircle2, Sparkles, Loader2 } from "lucide-react";
 import { getTestimonialReviews, submitTestimonialReview, type StudentReview } from "@/app/actions/testimonials";
 
 export function CourseReviews({
@@ -91,7 +91,15 @@ export function CourseReviews({
   const avgRating =
     reviews.length > 0
       ? (reviews.reduce((acc, r) => acc + (r.rating || 5), 0) / reviews.length).toFixed(1)
-      : "5.0";
+      : null;
+
+  function cleanRole(roleStr: string) {
+    if (!roleStr) return "Verified Student";
+    // If it contains "• Course Title", show clean role or fallback
+    const parts = roleStr.split("•");
+    const rolePart = parts[0]?.trim();
+    return rolePart || "Verified Student";
+  }
 
   return (
     <div className="rounded-[2.5rem] bg-white p-6 sm:p-8 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-6">
@@ -113,18 +121,27 @@ export function CourseReviews({
 
         {/* Rating score badge & Add review toggle */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-2xl bg-linen dark:bg-white/10 px-3.5 py-2 border border-forest/5 dark:border-white/5">
-            <div className="flex text-amber-400">
-              <Star size={16} fill="currentColor" />
+          {reviews.length > 0 && avgRating ? (
+            <div className="flex items-center gap-2 rounded-2xl bg-linen dark:bg-white/10 px-3.5 py-2 border border-forest/5 dark:border-white/5">
+              <div className="flex text-amber-400">
+                <Star size={16} fill="currentColor" />
+              </div>
+              <span className="text-sm font-black text-forest dark:text-cream">{avgRating}</span>
+              <span className="text-xs text-ink/40 dark:text-cream/40">
+                ({reviews.length} {reviews.length === 1 ? "review" : "reviews"})
+              </span>
             </div>
-            <span className="text-sm font-black text-forest dark:text-cream">{avgRating}</span>
-            <span className="text-xs text-ink/40 dark:text-cream/40">({reviews.length} reviews)</span>
-          </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-2xl bg-linen dark:bg-white/10 px-3.5 py-2 border border-forest/5 dark:border-white/5 text-xs font-bold text-ink/60 dark:text-cream/60">
+              <Sparkles size={13} className="text-amber-500" />
+              <span>No reviews yet</span>
+            </div>
+          )}
 
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-forest hover:bg-leaf text-white px-4 py-2 text-xs font-black shadow-md transition scale-100 hover:scale-105"
+              className="inline-flex items-center gap-1.5 rounded-full bg-forest hover:bg-leaf text-white px-4 py-2 text-xs font-black shadow-md transition scale-100 hover:scale-105 cursor-pointer"
             >
               <Plus size={14} /> Write Review
             </button>
@@ -140,12 +157,12 @@ export function CourseReviews({
         >
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black text-forest dark:text-cream flex items-center gap-2">
-              <Sparkles size={16} className="text-amber-500" /> Share Your Course Experience
+              <Sparkles size={16} className="text-amber-500" /> Share Your Experience for {courseTitle}
             </h3>
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="text-xs font-bold text-ink/40 hover:text-forest dark:text-cream/40"
+              className="text-xs font-bold text-ink/40 hover:text-forest dark:text-cream/40 cursor-pointer"
             >
               Cancel
             </button>
@@ -164,7 +181,7 @@ export function CourseReviews({
                   onClick={() => setRating(star)}
                   onMouseEnter={() => setHoverRating(star)}
                   onMouseLeave={() => setHoverRating(null)}
-                  className="p-1 text-amber-400 hover:scale-110 transition"
+                  className="p-1 text-amber-400 hover:scale-110 transition cursor-pointer"
                 >
                   <Star
                     size={22}
@@ -245,14 +262,14 @@ export function CourseReviews({
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="rounded-full px-4 py-2 text-xs font-bold border border-forest/20 text-forest dark:border-white/20 dark:text-cream"
+              className="rounded-full px-4 py-2 text-xs font-bold border border-forest/20 text-forest dark:border-white/20 dark:text-cream cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 text-xs font-bold shadow-md transition disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 text-xs font-bold shadow-md transition disabled:opacity-50 cursor-pointer"
             >
               {submitting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
               Submit Review
@@ -263,36 +280,43 @@ export function CourseReviews({
 
       {/* ── REVIEWS LIST ── */}
       {loading ? (
-        <div className="py-8 text-center text-xs text-ink/50 dark:text-cream/50">
-          Loading student feedback...
+        <div className="py-8 text-center text-xs text-ink/50 dark:text-cream/50 flex items-center justify-center gap-2">
+          <Loader2 size={15} className="animate-spin text-leaf" />
+          <span>Loading course reviews...</span>
         </div>
       ) : reviews.length === 0 ? (
-        <div className="rounded-2xl bg-linen/50 dark:bg-white/5 p-6 text-center space-y-2">
-          <p className="text-xs font-bold text-forest dark:text-cream">
-            Be the first student to review this course!
+        <div className="rounded-3xl bg-linen/40 dark:bg-white/[0.03] p-8 text-center space-y-3 border border-forest/10 dark:border-white/10">
+          <div className="mx-auto grid size-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <MessageSquareHeart size={22} />
+          </div>
+          <h3 className="text-base font-black text-forest dark:text-cream">
+            Be the first student to review {courseTitle}!
+          </h3>
+          <p className="text-xs text-ink/65 dark:text-cream/65 max-w-md mx-auto leading-relaxed">
+            Have you watched the lessons and formulated batches for this course? Share your genuine feedback and tips with other learners.
           </p>
-          <p className="text-[11px] text-ink/60 dark:text-cream/60 max-w-sm mx-auto">
-            Share how the formulation recipe worked for your practical batches and inspire future makers.
-          </p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-forest text-white px-4 py-2 text-xs font-bold"
-          >
-            <Plus size={13} /> Write the First Review
-          </button>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-forest hover:bg-leaf text-white px-5 py-2.5 text-xs font-black shadow-md transition cursor-pointer"
+            >
+              <Plus size={14} /> Write the First Review
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {reviews.slice(0, 6).map((item, idx) => (
+          {reviews.map((item, idx) => (
             <div
               key={`${item.id || item.name}-${idx}`}
               className={`rounded-2xl p-4 sm:p-5 border transition-all ${
                 item.isNew
-                  ? "bg-emerald-500/10 border-emerald-500/40 shadow-sm"
+                  ? "bg-emerald-500/10 border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/20"
                   : "bg-linen/40 dark:bg-white/[0.03] border-forest/10 dark:border-white/10"
               }`}
             >
-              {/* Rating stars & New badge */}
+              {/* Rating stars & Verified Learner badge */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex text-amber-400 gap-0.5">
                   {Array.from({ length: item.rating || 5 }).map((_, i) => (
@@ -319,7 +343,7 @@ export function CourseReviews({
                     {item.name}
                   </p>
                   <p className="text-[10px] text-ink/50 dark:text-cream/50 truncate">
-                    {item.role || "Verified Student"}
+                    {cleanRole(item.role)}
                   </p>
                 </div>
               </div>

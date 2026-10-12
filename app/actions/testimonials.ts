@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { testimonials as defaultTestimonials } from "@/lib/data";
 
 export interface StudentReview {
   id?: string;
@@ -23,10 +22,10 @@ export async function getTestimonialReviews(courseFilter?: string): Promise<Stud
       .select("*")
       .eq("published", true)
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(50);
 
     if (error || !data || data.length === 0) {
-      return defaultTestimonials.map((t) => ({ ...t, rating: 5 }));
+      return [];
     }
 
     const reviews: StudentReview[] = data.map((row: any) => ({
@@ -41,15 +40,17 @@ export async function getTestimonialReviews(courseFilter?: string): Promise<Stud
 
     if (courseFilter && courseFilter.trim()) {
       const q = courseFilter.toLowerCase().trim();
+      // Only match reviews that actually belong to this course
       const matched = reviews.filter(
         (r) => r.role?.toLowerCase().includes(q) || r.quote?.toLowerCase().includes(q)
       );
-      if (matched.length > 0) return matched;
+      return matched;
     }
 
+    // Return all real database reviews (used on Home Page)
     return reviews;
   } catch {
-    return defaultTestimonials.map((t) => ({ ...t, rating: 5 }));
+    return [];
   }
 }
 
