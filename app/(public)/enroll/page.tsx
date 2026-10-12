@@ -25,6 +25,12 @@ export default async function EnrollPage({
     data: { user },
   } = await supabase.auth.getUser();
 
+  // If not logged in, never show checkout page — ask for login first!
+  if (!user) {
+    const enrollTarget = `/enroll${course ? `?course=${encodeURIComponent(course)}${plan ? `&plan=${encodeURIComponent(plan)}` : ""}` : ""}`;
+    redirect(`/login?redirectTo=${encodeURIComponent(enrollTarget)}`);
+  }
+
   // 2. Fetch courses on the server
   const { data: rawCourses } = await supabase
     .from("lms_courses")

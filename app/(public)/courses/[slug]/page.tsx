@@ -160,6 +160,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                   slug={course.slug}
                   basePrice={course.price}
                   variants={course.durationVariants}
+                  isAuthenticated={Boolean(user)}
                 />
               )}
 

@@ -16,7 +16,7 @@ export function CourseCard({ course }: { course: Course }) {
     ? `/learn/${course.slug}/main-video`
     : isFree
     ? `/learn/${course.slug}/main-video`
-    : `/enroll?course=${course.slug}`;
+    : `/courses/${course.slug}`;
 
   return (
     <Link
