@@ -42,6 +42,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   compress: true,
   poweredByHeader: false,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
 
   // Security headers applied to all routes
   async headers() {

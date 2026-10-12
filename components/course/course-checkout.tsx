@@ -62,6 +62,67 @@ interface Props {
   isAuthenticated?: boolean;
 }
 
+async function compressImageIfNeeded(file: File): Promise<File> {
+  // If file is already small (under 750KB) or not an image, return unchanged
+  if (!file.type.startsWith("image/") || file.size <= 750 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDimension = 1600;
+        let { width, height } = img;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+            const compressed = new File([blob], cleanName, {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            });
+            resolve(compressed);
+          },
+          "image/jpeg",
+          0.82
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
 function getThumbnail(c: CheckoutCourse) {
   if (c.thumbnail_url) return c.thumbnail_url;
   const match =
@@ -179,11 +240,17 @@ export function CourseCheckout({
     }));
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setProofFile(file);
-    setProofPreview(URL.createObjectURL(file));
+    try {
+      const processed = await compressImageIfNeeded(file);
+      setProofFile(processed);
+      setProofPreview(URL.createObjectURL(processed));
+    } catch {
+      setProofFile(file);
+      setProofPreview(URL.createObjectURL(file));
+    }
   }
 
   function copyText(text: string, type: "id" | "number") {
@@ -387,19 +454,32 @@ export function CourseCheckout({
     formData.set("utr_number", utr.trim());
     formData.set("selected_all", String(selected.size === courses.length && courses.length > 0));
     if (proofFile) {
-      formData.set("proof_file", proofFile);
+      try {
+        const compressed = await compressImageIfNeeded(proofFile);
+        formData.set("proof_file", compressed);
+      } catch {
+        formData.set("proof_file", proofFile);
+      }
     }
 
-    const res = await submitEnrollmentRequest(formData);
-    setSubmitting(false);
+    try {
+      const res = await submitEnrollmentRequest(formData);
+      setSubmitting(false);
 
-    if (res?.error) {
-      setError(res.error);
-      return;
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+
+      setSubmittedUtr(utr.trim());
+      setDone(true);
+    } catch (err: any) {
+      setSubmitting(false);
+      setError(
+        err?.message ||
+          "Could not submit payment proof. Please check your network connection or contact our helpline."
+      );
     }
-
-    setSubmittedUtr(utr.trim());
-    setDone(true);
   }
 
   /* ══════════════ SUCCESS SCREEN ══════════════ */

@@ -41,20 +41,20 @@ export async function submitEnrollmentRequest(formData: FormData) {
     const proofFile = formData.get("proof_file") as File | null;
 
     let paymentProofUrl: string | null = null;
+    const admin = createAdminClient();
 
     if (proofFile && proofFile.size > 0) {
-      const ext = proofFile.name.split(".").pop();
+      const ext = proofFile.name.split(".").pop() || "jpg";
       const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await admin.storage
         .from("payment-proofs")
         .upload(path, proofFile, { upsert: true });
       if (!uploadError) {
-        const { data: urlData } = supabase.storage.from("payment-proofs").getPublicUrl(path);
+        const { data: urlData } = admin.storage.from("payment-proofs").getPublicUrl(path);
         paymentProofUrl = urlData.publicUrl;
       }
     }
 
-    const admin = createAdminClient();
     const { error } = await admin.from("lms_enrollment_requests").insert({
       user_id: user.id,
       course_title: courseTitles,
