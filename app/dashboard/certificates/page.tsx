@@ -96,11 +96,17 @@ export default function UserCertificatesPage() {
 
                     <div className="flex-1 min-w-0">
                       <span className={`inline-block rounded-full px-3 py-0.5 text-[10px] font-black uppercase mb-1 ${
-                        isEligible
+                        course.isFree
+                          ? "bg-slate-500/15 text-slate-700 dark:bg-white/10 dark:text-cream/80"
+                          : isEligible
                           ? "bg-emerald-600 text-white"
                           : "bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300"
                       }`}>
-                        {isEligible ? "🎉 Certificate Unlocked" : "In Progress"}
+                        {course.isFree
+                          ? "Free Class (No Certificate)"
+                          : isEligible
+                          ? "🎉 Certificate Unlocked"
+                          : "In Progress"}
                       </span>
                       <h2 className="font-black text-forest dark:text-cream text-base leading-snug line-clamp-2">
                         {course.courseTitle}
@@ -131,14 +137,25 @@ export default function UserCertificatesPage() {
 
                     <div className="flex items-center justify-between text-[11px] text-ink/50 dark:text-cream/50 pt-1">
                       <span>{course.completedLessons} of {course.totalLessons} lessons completed</span>
-                      <span>70% required for certificate</span>
+                      <span>{course.isFree ? "Free class practice" : "70% required for certificate"}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Bottom Action Button */}
                 <div className="pt-4 mt-4 border-t border-forest/10 dark:border-white/10">
-                  {isEligible ? (
+                  {course.isFree ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-ink/60 dark:text-cream/60 font-semibold text-center">
+                        Official certificates are provided for Premium enrolled courses.
+                      </p>
+                      <Link href={`/learn/${course.courseSlug}/main-video`} className="block">
+                        <button className="flex w-full items-center justify-center gap-2 rounded-full bg-forest py-2.5 px-5 text-xs font-bold text-white hover:bg-leaf transition">
+                          <PlayCircle size={16} /> Watch Lesson <ChevronRight size={14} />
+                        </button>
+                      </Link>
+                    </div>
+                  ) : isEligible ? (
                     <button
                       onClick={() => handleOpenCertModal(course)}
                       className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 py-3 px-5 text-sm font-black text-white hover:bg-emerald-700 shadow-md transition scale-100 hover:scale-[1.02]"

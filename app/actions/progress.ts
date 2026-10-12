@@ -13,6 +13,8 @@ export type UserCourseProgress = {
   completionPercentage: number;
   eligibleForCertificate: boolean;
   enrolledAt: string;
+  isPremium?: boolean;
+  isFree?: boolean;
 };
 
 export async function toggleLessonCompletion(courseId: string, lessonId: string, completed: boolean) {
@@ -82,7 +84,7 @@ export async function getUserEnrolledCoursesWithProgress(): Promise<{
     // 2. Fetch course info (only published courses)
     const { data: courses } = await supabase
       .from("lms_courses")
-      .select("id, title, slug, thumbnail_url, youtube_url, published")
+      .select("id, title, slug, thumbnail_url, youtube_url, published, is_free")
       .in("id", courseIds);
 
     if (!courses || courses.length === 0) {
@@ -154,8 +156,10 @@ export async function getUserEnrolledCoursesWithProgress(): Promise<{
         totalLessons,
         completedLessons: completedCount,
         completionPercentage: pct,
-        eligibleForCertificate: pct >= 70,
+        eligibleForCertificate: !c.is_free && pct >= 70,
         enrolledAt: enrollment?.enrolled_at || new Date().toISOString(),
+        isPremium: !c.is_free,
+        isFree: Boolean(c.is_free),
       };
     });
 

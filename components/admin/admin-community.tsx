@@ -113,6 +113,13 @@ export function AdminCommunity() {
     fetchGroupMembers(activeGroup.id);
   }
 
+  async function handleAddAllMembers() {
+    if (!activeGroup || nonMembers.length === 0) return;
+    const rows = nonMembers.map((s) => ({ group_id: activeGroup.id, user_id: s.id }));
+    await supabase.from("lms_group_members").upsert(rows, { onConflict: "group_id,user_id" });
+    fetchGroupMembers(activeGroup.id);
+  }
+
   async function handleRemoveMember(userId: string) {
     if (!activeGroup) return;
     await supabase.from("lms_group_members").delete().eq("group_id", activeGroup.id).eq("user_id", userId);
@@ -204,21 +211,45 @@ export function AdminCommunity() {
             <h2 className="font-black text-forest dark:text-cream">{activeGroup.name} — Members</h2>
             <p className="mt-1 text-sm text-ink/60 dark:text-cream/60 mb-4">Add or remove students from this group.</p>
 
-            {/* Add member */}
-            <div className="mb-4 flex gap-2">
-              <select value={addingUser} onChange={e => setAddingUser(e.target.value)}
-                className="flex-1 rounded-2xl border border-forest/20 bg-linen px-3 py-2 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-leaf dark:border-white/10 dark:bg-white/5 dark:text-cream">
-                <option value="">Select student to add...</option>
-                {nonMembers.map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.full_name ?? s.email} {s.isPaid ? "✅ (Paid Student)" : ""}
+            {/* Add member controls */}
+            <div className="mb-4 space-y-2">
+              <div className="flex gap-2">
+                <select
+                  value={addingUser}
+                  onChange={e => setAddingUser(e.target.value)}
+                  className="flex-1 rounded-2xl border border-forest/20 bg-linen px-3.5 py-2.5 text-sm font-medium text-forest focus:outline-none focus:ring-2 focus:ring-leaf dark:border-white/10 dark:bg-[#11221a] dark:text-cream"
+                >
+                  <option value="" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">
+                    Select LMS student to add ({nonMembers.length} available)...
                   </option>
-                ))}
-              </select>
-              <button onClick={handleAddMember} disabled={!addingUser}
-                className="inline-flex items-center gap-1 rounded-full bg-leaf px-4 py-2 text-sm font-bold text-white hover:bg-forest transition disabled:opacity-50">
-                <UserPlus size={14} /> Add
-              </button>
+                  {nonMembers.map((s: any) => (
+                    <option
+                      key={s.id}
+                      value={s.id}
+                      className="bg-white text-forest dark:bg-[#11221a] dark:text-cream"
+                    >
+                      {s.full_name ?? s.email} {s.isPaid ? "✅ (Enrolled Student)" : "👤 (Registered)"}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleAddMember}
+                  disabled={!addingUser}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-5 py-2.5 text-sm font-bold text-white hover:bg-forest transition disabled:opacity-50 shrink-0"
+                >
+                  <UserPlus size={15} /> Add Student
+                </button>
+              </div>
+
+              {nonMembers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleAddAllMembers}
+                  className="w-full py-2 px-3 text-xs font-bold text-leaf hover:text-forest dark:text-emerald-400 rounded-xl bg-forest/5 hover:bg-forest/10 dark:bg-white/5 transition border border-forest/10 dark:border-white/10 flex items-center justify-center gap-1.5"
+                >
+                  <Users size={14} /> Add All {nonMembers.length} LMS Students to this Group
+                </button>
+              )}
             </div>
 
             {/* Members list */}

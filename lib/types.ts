@@ -62,6 +62,8 @@ export type Course = {
   featured?: boolean;
   trending?: boolean;
   isEnrolled?: boolean;
+  isFree?: boolean;
+  isPremium?: boolean;
   createdAt?: string;
 };
 

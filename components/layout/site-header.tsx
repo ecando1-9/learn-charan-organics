@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, GraduationCap, Home, Menu, Moon, Search, ShieldCheck, Sun, Users2, UserRound, X } from "lucide-react";
@@ -24,30 +24,82 @@ export function SiteHeader() {
   const { theme, setTheme } = useTheme();
   const [userLabel, setUserLabel] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
-  // Close menu on route change
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  // Close menus on route change
+  useEffect(() => {
+    setMenuOpen(false);
+    setProfileOpen(false);
+  }, [pathname]);
+
+  // Click outside to close profile dropdown
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
 
+    function evaluateAdmin(user: any) {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+      const adminEmails = ["yuvakiranreddy7@gmail.com", "charanorganics@outlook.com", "charanorganics@gmail.com"];
+      const email = user.email?.toLowerCase();
+      const isMeta = user.user_metadata?.role === "admin" || (email && adminEmails.includes(email));
+
+      if (isMeta) {
+        setIsAdmin(true);
+      } else if (user.id) {
+        supabase
+          .from("lms_profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            setIsAdmin(data?.role === "admin");
+          });
+      }
+    }
+
     supabase.auth.getUser().then(({ data }) => {
       const user = data.user;
       setUserLabel(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null);
+      evaluateAdmin(user);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user;
       setUserLabel(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null);
+      evaluateAdmin(user);
     });
 
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  const isShellRoute =
+    pathname?.startsWith("/dashboard") ||
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/community");
+
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-white/30 bg-linen/80 backdrop-blur-2xl dark:border-white/10 dark:bg-forest/80">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div
+          className={cn(
+            "flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8",
+            isShellRoute ? "w-full" : "mx-auto max-w-7xl"
+          )}
+        >
           <BrandLogo />
           {/* Desktop nav */}
           <nav className="hidden items-center gap-1 lg:flex">
@@ -76,26 +128,56 @@ export function SiteHeader() {
                   <Users2 size={16} className="mr-1.5" /> Groups Chat
                 </Link>
 
-                <div className="relative group">
-                  <Link href="/dashboard" className="grid size-10 place-items-center rounded-full bg-forest text-cream shadow-md transition hover:scale-105 border-2 border-transparent group-hover:border-leaf/50">
+                {/* Profile menu with hover bridge & click persistence */}
+                <div
+                  ref={profileRef}
+                  className="relative"
+                  onMouseEnter={() => setProfileOpen(true)}
+                  onMouseLeave={() => setProfileOpen(false)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setProfileOpen((prev) => !prev)}
+                    className="grid size-10 place-items-center rounded-full bg-forest text-cream shadow-md transition hover:scale-105 border-2 border-transparent hover:border-leaf/50 cursor-pointer"
+                    aria-label="Profile navigation menu"
+                  >
                     <UserRound size={18} />
-                  </Link>
-                  <div className="absolute right-0 top-full mt-2 hidden w-48 flex-col rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-forest/10 dark:bg-[#0e1f18] dark:ring-white/10 group-hover:flex">
-                     <div className="px-3 py-2 border-b border-forest/10 dark:border-white/10 mb-1">
-                        <p className="text-xs font-bold text-ink/50 dark:text-cream/50 truncate">{userLabel}</p>
-                     </div>
-                     <Link href="/admin" className="rounded-xl px-3 py-2 text-sm font-bold text-emerald-600 hover:bg-forest/5 dark:text-emerald-400 dark:hover:bg-white/10 transition flex items-center justify-between">
-                       <span>Admin Panel</span>
-                       <ShieldCheck size={14} />
-                     </Link>
-                     <Link href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Dashboard</Link>
-                     <Link href="/dashboard/courses" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">My Learning</Link>
-                     <Link href="/dashboard/certificates" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Certificates</Link>
-                     <Link href="/dashboard/settings" className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Settings</Link>
-                     <div className="mt-1 pt-1 border-t border-forest/10 dark:border-white/10">
-                       <LogoutButton compact />
-                     </div>
-                  </div>
+                  </button>
+
+                  {profileOpen && (
+                    <div className="absolute right-0 top-full pt-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="w-52 flex flex-col rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-forest/10 dark:bg-[#0e1f18] dark:ring-white/10">
+                        <div className="px-3 py-2 border-b border-forest/10 dark:border-white/10 mb-1">
+                          <p className="text-xs font-bold text-ink/50 dark:text-cream/50 truncate">{userLabel}</p>
+                          {isAdmin && (
+                            <span className="inline-block mt-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                              Administrator
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Admin Panel link ONLY displayed if user is admin */}
+                        {isAdmin && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setProfileOpen(false)}
+                            className="rounded-xl px-3 py-2 text-sm font-bold text-emerald-600 hover:bg-forest/5 dark:text-emerald-400 dark:hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>Admin Panel</span>
+                            <ShieldCheck size={14} />
+                          </Link>
+                        )}
+
+                        <Link href="/dashboard" onClick={() => setProfileOpen(false)} className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Dashboard</Link>
+                        <Link href="/dashboard/courses" onClick={() => setProfileOpen(false)} className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">My Learning</Link>
+                        <Link href="/dashboard/certificates" onClick={() => setProfileOpen(false)} className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Certificates</Link>
+                        <Link href="/dashboard/settings" onClick={() => setProfileOpen(false)} className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Settings</Link>
+                        <div className="mt-1 pt-1 border-t border-forest/10 dark:border-white/10">
+                          <LogoutButton compact />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -168,6 +250,12 @@ export function SiteHeader() {
 
               {userLabel ? (
                 <>
+                  {isAdmin && (
+                    <Link href="/admin" className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-bold text-emerald-600 transition hover:bg-forest/5 dark:text-emerald-400 dark:hover:bg-white/10">
+                      <span>Admin Panel</span>
+                      <ShieldCheck size={16} />
+                    </Link>
+                  )}
                   <Link href="/dashboard" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
                     <UserRound size={17} /> {userLabel}
                   </Link>

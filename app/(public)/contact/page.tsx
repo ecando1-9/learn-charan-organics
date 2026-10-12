@@ -241,14 +241,14 @@ export default function ContactPage() {
                       <select
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
-                        className="w-full rounded-2xl border border-forest/15 bg-linen/50 px-4 py-3 text-sm text-forest focus:border-leaf focus:bg-white focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-cream"
+                        className="w-full rounded-2xl border border-forest/15 bg-linen/50 px-4 py-3 text-sm text-forest focus:border-leaf focus:bg-white focus:outline-none dark:border-white/10 dark:bg-[#11221a] dark:text-cream"
                       >
-                        <option value="Enrollment & Payment Verification">Enrollment & Payment Verification</option>
-                        <option value="Course Video & Lesson Player">Course Video & Lesson Player</option>
-                        <option value="Formulation Notes & PDF Downloads">Formulation Notes & PDF Downloads</option>
-                        <option value="Certificate Eligibility & Issuance">Certificate Eligibility & Issuance</option>
-                        <option value="Business & Manufacturing Guidance">Business & Manufacturing Guidance</option>
-                        <option value="Other Inquiries">Other Inquiries</option>
+                        <option value="Enrollment & Payment Verification" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">Enrollment & Payment Verification</option>
+                        <option value="Course Video & Lesson Player" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">Course Video & Lesson Player</option>
+                        <option value="Formulation Notes & PDF Downloads" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">Formulation Notes & PDF Downloads</option>
+                        <option value="Certificate Eligibility & Issuance" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">Certificate Eligibility & Issuance</option>
+                        <option value="Business & Manufacturing Guidance" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">Business & Manufacturing Guidance</option>
+                        <option value="Other Inquiries" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">Other Inquiries</option>
                       </select>
                     </div>
                   </div>
