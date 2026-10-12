@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, CheckCircle2, Copy, Loader2,
   PackageCheck, PlayCircle, ShieldCheck, Upload,
-  X, Sparkles, Clock, AlertCircle, ShoppingCart
+  X, Sparkles, Clock, AlertCircle, ShoppingCart,
+  ChevronDown, ChevronUp, UserCheck, Award, FileText, Check
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
@@ -16,6 +17,8 @@ import {
   parseDurationVariants,
   getSelectedVariant,
 } from "@/lib/course-variants";
+
+export const dynamic = "force-dynamic";
 
 const UPI_ID = "8985482084@hdfc";
 
@@ -42,7 +45,16 @@ function getThumbnail(c: Course) {
     : "https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png";
 }
 
-export default function EnrollPage() {
+function EnrollLoadingState() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+      <Loader2 className="animate-spin text-leaf" size={36} />
+      <p className="text-sm font-bold text-forest dark:text-cream">Loading enrollment checkout…</p>
+    </div>
+  );
+}
+
+function EnrollContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const preselect = searchParams.get("course");
@@ -62,11 +74,28 @@ export default function EnrollPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [showAllSummary, setShowAllSummary] = useState(false);
+  const [showOtherCourses, setShowOtherCourses] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadCourses() {
       const supabase = createClient();
+
+      // Check current auth status
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setIsAuthenticated(true);
+          setUserEmail(user.email || null);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch {
+        setIsAuthenticated(false);
+      }
+
       let rawData: any[] = [];
 
       // Try selecting duration_variants, fallback gracefully if not present in schema
@@ -234,6 +263,10 @@ export default function EnrollPage() {
     return sum + getCoursePrice(c, durations[c.id]);
   }, 0);
 
+  // Check if we are viewing a dedicated preselected course
+  const preselectedCourse = preselect ? courses.find((c) => c.slug === preselect) : null;
+  const otherCourses = preselectedCourse ? courses.filter((c) => c.id !== preselectedCourse.id) : courses;
+
   async function handleSubmit() {
     if (selected.size === 0) {
       setError("Please select at least one course to enroll.");
@@ -252,7 +285,8 @@ export default function EnrollPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setError("Please log in to your account first before submitting.");
+      setIsAuthenticated(false);
+      setError("Please log in to your student account first so this course is linked to your dashboard.");
       setSubmitting(false);
       return;
     }
@@ -290,6 +324,10 @@ export default function EnrollPage() {
   );
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${qrData}`;
 
+  const currentCheckoutUrl = typeof window !== "undefined"
+    ? window.location.pathname + window.location.search
+    : `/enroll${preselect ? `?course=${preselect}` : ""}`;
+
   /* ── Redirecting to free class ── */
   if (redirectingFree) {
     return (
@@ -317,14 +355,14 @@ export default function EnrollPage() {
             Payment Request Submitted!
           </h1>
           <p className="mt-3 text-sm leading-6 text-ink/70 dark:text-cream/70">
-            Thank you! Your payment proof and UTR details have been forwarded to the admin.
+            Thank you! Your payment proof and UTR details have been forwarded to the academy admin.
           </p>
           <div className="mt-6 rounded-2xl bg-leaf/10 p-4 text-xs font-semibold text-leaf leading-5 text-left space-y-1">
             <p className="font-bold flex items-center gap-1.5 text-sm">
               <CheckCircle2 size={16} /> What happens next?
             </p>
             <p>1. Admin verifies your UPI payment with bank records.</p>
-            <p>2. Once verified, your course and formulation PDFs are instantly unlocked.</p>
+            <p>2. Once verified, your course video and formulation PDF notes will be unlocked.</p>
             <p>3. A confirmation email will be dispatched to your registered email address.</p>
           </div>
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -353,7 +391,13 @@ export default function EnrollPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.back()}
+              onClick={() => {
+                if (preselectedCourse) {
+                  router.push(`/courses/${preselectedCourse.slug}`);
+                } else {
+                  router.back();
+                }
+              }}
               className="grid size-9 place-items-center rounded-full bg-forest/5 hover:bg-forest/10 dark:bg-white/10 transition"
               title="Back"
             >
@@ -361,10 +405,10 @@ export default function EnrollPage() {
             </button>
             <div>
               <h1 className="text-lg sm:text-xl font-black text-forest dark:text-cream leading-tight">
-                Course Enrollment Checkout
+                {preselectedCourse ? `Enroll in ${preselectedCourse.title}` : "Course Enrollment Checkout"}
               </h1>
               <p className="text-xs text-ink/55 dark:text-cream/55">
-                Instant UPI Payment & Fast Verification
+                Instant UPI Payment & Fast Verification &middot; Charan Organics Academy
               </p>
             </div>
           </div>
@@ -376,10 +420,7 @@ export default function EnrollPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {loading ? (
-          <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3">
-            <Loader2 className="animate-spin text-leaf" size={36} />
-            <p className="text-sm font-bold text-forest dark:text-cream">Loading published courses…</p>
-          </div>
+          <EnrollLoadingState />
         ) : courses.length === 0 ? (
           <div className="mx-auto max-w-md rounded-[2.5rem] bg-white p-10 text-center shadow-soft dark:bg-white/5">
             <div className="mx-auto grid size-16 place-items-center rounded-full bg-amber-500/10 text-amber-500">
@@ -398,189 +439,398 @@ export default function EnrollPage() {
           </div>
         ) : (
           /* ══════════ UNIFIED SINGLE-PAGE CHECKOUT ══════════ */
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr] items-start">
+          <div className="grid gap-8 lg:grid-cols-[1.25fr_1fr] items-start">
 
             {/* ── LEFT COLUMN: Course Cart & Duration ── */}
             <div className="space-y-6">
-              <div className="rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-forest/10 pb-4 dark:border-white/10">
-                  <div>
-                    <h2 className="text-xl font-black text-forest dark:text-cream flex items-center gap-2">
-                      <ShoppingCart size={20} className="text-leaf" /> Select Courses
-                    </h2>
-                    <p className="text-xs text-ink/60 dark:text-cream/60 mt-0.5">
-                      Choose one or more courses to add to your enrollment
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={selectAllCourses}
-                      className="text-xs font-bold text-leaf hover:underline px-2 py-1 rounded"
-                    >
-                      Select All
-                    </button>
-                    <span className="text-ink/20 dark:text-cream/20">|</span>
-                    <button
-                      type="button"
-                      onClick={clearAllCourses}
-                      className="text-xs font-bold text-ink/50 hover:text-ink hover:underline dark:text-cream/50 px-2 py-1 rounded"
-                    >
-                      Deselect
-                    </button>
-                  </div>
-                </div>
 
-                {/* Course List */}
-                <div className="mt-4 space-y-3">
-                  {courses.map((course) => {
-                    const isChecked = selected.has(course.id);
-                    const activeVariant = getCourseActiveVariant(course);
-                    const activePrice = activeVariant.price;
+              {/* MODE A: PRESELECTED SPECIFIC COURSE FLOW */}
+              {preselectedCourse ? (
+                <div className="space-y-6">
+                  {/* Featured Course Checkout Card */}
+                  <div className="rounded-[2.5rem] bg-white p-6 sm:p-7 shadow-soft dark:bg-white/5 border-2 border-emerald-600/30 dark:border-emerald-500/30 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
 
-                    return (
-                      <div
-                        key={course.id}
-                        className={`rounded-2xl border-2 p-4 transition ${
-                          isChecked
-                            ? "border-leaf bg-leaf/5 shadow-sm"
-                            : "border-forest/10 bg-linen/40 hover:border-forest/20 dark:border-white/10 dark:bg-white/5"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3.5">
-                          {/* Checkbox */}
-                          <button
-                            type="button"
-                            onClick={() => toggleCourse(course.id)}
-                            className={`mt-1 grid size-6 shrink-0 place-items-center rounded-lg border-2 transition ${
-                              isChecked
-                                ? "border-leaf bg-leaf text-white"
-                                : "border-forest/25 bg-white dark:border-cream/25 dark:bg-white/10"
-                            }`}
-                          >
-                            {isChecked && <CheckCircle2 size={16} />}
-                          </button>
+                    {/* Badge & Meta */}
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-black px-3.5 py-1 tracking-wide shadow-sm">
+                        <Sparkles size={13} /> ENROLLING IN THIS MASTERCLASS
+                      </span>
+                      <span className="text-xs font-bold text-ink/40 dark:text-cream/40">
+                        Charan Organics Academy
+                      </span>
+                    </div>
 
-                          {/* Thumbnail */}
-                          <img
-                            src={getThumbnail(course)}
-                            alt={course.title}
-                            className="size-16 shrink-0 rounded-xl object-cover cursor-pointer"
-                            onClick={() => toggleCourse(course.id)}
-                          />
+                    {/* Course Header */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pb-5 border-b border-forest/10 dark:border-white/10">
+                      <img
+                        src={getThumbnail(preselectedCourse)}
+                        alt={preselectedCourse.title}
+                        className="size-24 sm:size-28 shrink-0 rounded-2xl object-cover shadow-sm border border-forest/10 dark:border-white/10"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h2 className="text-xl sm:text-2xl font-black text-forest dark:text-cream leading-tight">
+                          {preselectedCourse.title}
+                        </h2>
+                        <p className="mt-1 text-xs text-ink/65 dark:text-cream/65 leading-relaxed">
+                          Comprehensive botanical formulation training with full recipes, ingredient ratios, step-by-step video guidance & verifiable certificate.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-leaf dark:text-emerald-400">
+                          <span className="bg-leaf/10 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <PlayCircle size={12} /> HD Video Masterclass
+                          </span>
+                          <span className="bg-leaf/10 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <FileText size={12} /> Formulation PDF Notes
+                          </span>
+                          <span className="bg-leaf/10 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <Award size={12} /> QR Verifiable Certificate
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className="cursor-pointer"
-                              onClick={() => toggleCourse(course.id)}
-                            >
-                              <h3 className="line-clamp-2 text-sm font-black text-forest dark:text-cream leading-snug">
-                                {course.title}
-                              </h3>
-                              <p className="mt-0.5 text-xs text-ink/55 dark:text-cream/55 flex items-center gap-1.5">
-                                <Sparkles size={12} className="text-leaf" /> Includes full formulation PDF & video
-                              </p>
-                            </div>
-
-                            {/* Access Duration Variants Selector (Visible when selected) */}
-                            {isChecked && course.variants && course.variants.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-forest/10 dark:border-white/10 space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[11px] font-bold text-ink/70 dark:text-cream/70 flex items-center gap-1.5">
-                                    <Clock size={12} className="text-leaf" /> Choose Access Duration:
-                                  </span>
-                                  {course.variants.some((v) => v.savingsLabel) && (
-                                    <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
-                                      ✨ Longer access saves more!
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                  {course.variants.map((v) => {
-                                    const isCurrent = activeVariant.id === v.id;
-                                    return (
-                                      <button
-                                        key={v.id}
-                                        type="button"
-                                        onClick={() => toggleDuration(course.id, v.id)}
-                                        className={`relative flex items-center justify-between p-2.5 sm:p-3 rounded-2xl text-left transition-all border-2 ${
-                                          isCurrent
-                                            ? "border-emerald-600 bg-emerald-50/60 shadow-sm dark:border-emerald-500 dark:bg-emerald-950/30"
-                                            : "border-forest/10 bg-white/70 hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
-                                        }`}
-                                      >
-                                        {/* Left: Radio & Plan Name & Badges */}
-                                        <div className="flex items-center gap-2 min-w-0 pr-1">
-                                          <div
-                                            className={`size-4 rounded-full border-2 grid place-items-center shrink-0 transition ${
-                                              isCurrent
-                                                ? "border-emerald-600 bg-emerald-600 dark:border-emerald-500"
-                                                : "border-forest/30 dark:border-cream/30"
-                                            }`}
-                                          >
-                                            {isCurrent && <div className="size-1.5 rounded-full bg-white" />}
-                                          </div>
-                                          <div className="min-w-0">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                              <p className="text-xs font-black text-forest dark:text-cream leading-tight">
-                                                {v.name}
-                                              </p>
-                                              {v.isBestValue && (
-                                                <span className="rounded-full bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.2 shadow-sm">
-                                                  BEST VALUE
-                                                </span>
-                                              )}
-                                              {v.savingsLabel && (
-                                                <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.2 border border-emerald-300 dark:border-emerald-700">
-                                                  {v.savingsLabel}
-                                                </span>
-                                              )}
-                                            </div>
-                                            {v.monthlyRate ? (
-                                              <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
-                                                ₹{v.monthlyRate}/mo equivalent
-                                              </p>
-                                            ) : null}
-                                          </div>
-                                        </div>
-
-                                        {/* Right: Price */}
-                                        <div className="text-right shrink-0">
-                                          <span className="text-xs sm:text-sm font-black text-forest dark:text-cream">
-                                            ₹{v.price.toLocaleString("en-IN")}
-                                          </span>
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Price Tag */}
-                          <div className="text-right shrink-0">
-                            <span className="text-base font-black text-leaf">
-                              ₹{activePrice.toLocaleString("en-IN")}
+                    {/* Access Duration Variants Selector */}
+                    {preselectedCourse.variants && preselectedCourse.variants.length > 0 && (
+                      <div className="mt-5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="font-extrabold text-forest dark:text-cream text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                            <Clock size={14} className="text-leaf" /> Select Access Duration:
+                          </p>
+                          {preselectedCourse.variants.some((v) => v.savingsLabel) && (
+                            <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                              ⭐ 1-Year Plan Saves Most!
                             </span>
-                            <p className="text-[10px] text-ink/45 dark:text-cream/45 line-clamp-1 max-w-[120px]">
-                              {activeVariant.name}
+                          )}
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {preselectedCourse.variants.map((v) => {
+                            const activeVar = getCourseActiveVariant(preselectedCourse);
+                            const isCurrent = activeVar.id === v.id;
+
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => toggleDuration(preselectedCourse.id, v.id)}
+                                className={`relative flex items-center justify-between p-3.5 sm:p-4 rounded-2xl text-left transition-all border-2 cursor-pointer ${
+                                  isCurrent
+                                    ? "border-emerald-600 bg-emerald-50/70 shadow-md dark:border-emerald-500 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20"
+                                    : "border-forest/10 bg-white hover:border-forest/30 dark:border-white/10 dark:bg-white/5"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0 pr-1">
+                                  <div
+                                    className={`size-4 rounded-full border-2 grid place-items-center shrink-0 transition ${
+                                      isCurrent
+                                        ? "border-emerald-600 bg-emerald-600 dark:border-emerald-500"
+                                        : "border-forest/30 dark:border-cream/30"
+                                    }`}
+                                  >
+                                    {isCurrent && <div className="size-1.5 rounded-full bg-white" />}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-xs sm:text-sm font-black text-forest dark:text-cream leading-tight">
+                                        {v.name}
+                                      </span>
+                                      {v.isBestValue && (
+                                        <span className="rounded-full bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 shadow-sm">
+                                          ⭐ BEST VALUE
+                                        </span>
+                                      )}
+                                      {v.savingsLabel && (
+                                        <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.5 border border-emerald-300 dark:border-emerald-700">
+                                          🔥 {v.savingsLabel}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {v.monthlyRate ? (
+                                      <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
+                                        Only ₹{v.monthlyRate}/month
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                <div className="text-right shrink-0">
+                                  <span className="text-sm sm:text-base font-black text-leaf dark:text-emerald-400">
+                                    ₹{v.price.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Optional: Add more courses accordion */}
+                  {otherCourses.length > 0 && (
+                    <div className="rounded-[2rem] bg-white p-5 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setShowOtherCourses(!showOtherCourses)}
+                        className="w-full flex items-center justify-between text-left group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="grid size-9 place-items-center rounded-xl bg-forest/5 group-hover:bg-forest/10 dark:bg-white/10 transition">
+                            <ShoppingCart size={17} className="text-leaf" />
+                          </div>
+                          <div>
+                            <p className="text-xs sm:text-sm font-black text-forest dark:text-cream">
+                              Want to bundle more courses? (+{otherCourses.length} available)
+                            </p>
+                            <p className="text-[11px] text-ink/50 dark:text-cream/50">
+                              Click to view and add additional academy masterclasses
                             </p>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                        <div className="grid size-7 place-items-center rounded-full bg-forest/5 text-forest dark:bg-white/10 dark:text-cream">
+                          {showOtherCourses ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </div>
+                      </button>
+
+                      {showOtherCourses && (
+                        <div className="mt-4 pt-4 border-t border-forest/10 dark:border-white/10 space-y-3">
+                          {otherCourses.map((course) => {
+                            const isChecked = selected.has(course.id);
+                            const activeVariant = getCourseActiveVariant(course);
+                            const activePrice = activeVariant.price;
+
+                            return (
+                              <div
+                                key={course.id}
+                                className={`rounded-2xl border-2 p-3.5 transition ${
+                                  isChecked
+                                    ? "border-leaf bg-leaf/5 shadow-sm"
+                                    : "border-forest/10 bg-linen/40 hover:border-forest/20 dark:border-white/10 dark:bg-white/5"
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleCourse(course.id)}
+                                    className={`mt-1 grid size-5 shrink-0 place-items-center rounded-lg border-2 transition ${
+                                      isChecked
+                                        ? "border-leaf bg-leaf text-white"
+                                        : "border-forest/25 bg-white dark:border-cream/25 dark:bg-white/10"
+                                    }`}
+                                  >
+                                    {isChecked && <Check size={13} />}
+                                  </button>
+
+                                  <img
+                                    src={getThumbnail(course)}
+                                    alt={course.title}
+                                    className="size-12 shrink-0 rounded-xl object-cover cursor-pointer"
+                                    onClick={() => toggleCourse(course.id)}
+                                  />
+
+                                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleCourse(course.id)}>
+                                    <h4 className="line-clamp-1 text-xs font-black text-forest dark:text-cream">
+                                      {course.title}
+                                    </h4>
+                                    <p className="text-[10px] text-ink/50 dark:text-cream/50">
+                                      {activeVariant.name}
+                                    </p>
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <span className="text-xs font-black text-leaf">
+                                      ₹{activePrice.toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                /* MODE B: STANDARD MULTI-COURSE CART SELECTION */
+                <div className="rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-forest/10 pb-4 dark:border-white/10">
+                    <div>
+                      <h2 className="text-xl font-black text-forest dark:text-cream flex items-center gap-2">
+                        <ShoppingCart size={20} className="text-leaf" /> Select Courses
+                      </h2>
+                      <p className="text-xs text-ink/60 dark:text-cream/60 mt-0.5">
+                        Choose one or more courses to add to your enrollment
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={selectAllCourses}
+                        className="text-xs font-bold text-leaf hover:underline px-2 py-1 rounded"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-ink/20 dark:text-cream/20">|</span>
+                      <button
+                        type="button"
+                        onClick={clearAllCourses}
+                        className="text-xs font-bold text-ink/50 hover:text-ink hover:underline dark:text-cream/50 px-2 py-1 rounded"
+                      >
+                        Deselect
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Course List */}
+                  <div className="mt-4 space-y-3">
+                    {courses.map((course) => {
+                      const isChecked = selected.has(course.id);
+                      const activeVariant = getCourseActiveVariant(course);
+                      const activePrice = activeVariant.price;
+
+                      return (
+                        <div
+                          key={course.id}
+                          className={`rounded-2xl border-2 p-4 transition ${
+                            isChecked
+                              ? "border-leaf bg-leaf/5 shadow-sm"
+                              : "border-forest/10 bg-linen/40 hover:border-forest/20 dark:border-white/10 dark:bg-white/5"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3.5">
+                            {/* Checkbox */}
+                            <button
+                              type="button"
+                              onClick={() => toggleCourse(course.id)}
+                              className={`mt-1 grid size-6 shrink-0 place-items-center rounded-lg border-2 transition ${
+                                isChecked
+                                  ? "border-leaf bg-leaf text-white"
+                                  : "border-forest/25 bg-white dark:border-cream/25 dark:bg-white/10"
+                              }`}
+                            >
+                              {isChecked && <CheckCircle2 size={16} />}
+                            </button>
+
+                            {/* Thumbnail */}
+                            <img
+                              src={getThumbnail(course)}
+                              alt={course.title}
+                              className="size-16 shrink-0 rounded-xl object-cover cursor-pointer"
+                              onClick={() => toggleCourse(course.id)}
+                            />
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className="cursor-pointer"
+                                onClick={() => toggleCourse(course.id)}
+                              >
+                                <h3 className="line-clamp-2 text-sm font-black text-forest dark:text-cream leading-snug">
+                                  {course.title}
+                                </h3>
+                                <p className="mt-0.5 text-xs text-ink/55 dark:text-cream/55 flex items-center gap-1.5">
+                                  <Sparkles size={12} className="text-leaf" /> Includes full formulation PDF & video
+                                </p>
+                              </div>
+
+                              {/* Access Duration Variants Selector (Visible when selected) */}
+                              {isChecked && course.variants && course.variants.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-forest/10 dark:border-white/10 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold text-ink/70 dark:text-cream/70 flex items-center gap-1.5">
+                                      <Clock size={12} className="text-leaf" /> Choose Access Duration:
+                                    </span>
+                                    {course.variants.some((v) => v.savingsLabel) && (
+                                      <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                                        ✨ Longer access saves more!
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    {course.variants.map((v) => {
+                                      const isCurrent = activeVariant.id === v.id;
+                                      return (
+                                        <button
+                                          key={v.id}
+                                          type="button"
+                                          onClick={() => toggleDuration(course.id, v.id)}
+                                          className={`relative flex items-center justify-between p-2.5 sm:p-3 rounded-2xl text-left transition-all border-2 ${
+                                            isCurrent
+                                              ? "border-emerald-600 bg-emerald-50/60 shadow-sm dark:border-emerald-500 dark:bg-emerald-950/30"
+                                              : "border-forest/10 bg-white/70 hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0 pr-1">
+                                            <div
+                                              className={`size-4 rounded-full border-2 grid place-items-center shrink-0 transition ${
+                                                isCurrent
+                                                  ? "border-emerald-600 bg-emerald-600 dark:border-emerald-500"
+                                                  : "border-forest/30 dark:border-cream/30"
+                                              }`}
+                                            >
+                                              {isCurrent && <div className="size-1.5 rounded-full bg-white" />}
+                                            </div>
+                                            <div className="min-w-0">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <p className="text-xs font-black text-forest dark:text-cream leading-tight">
+                                                  {v.name}
+                                                </p>
+                                                {v.isBestValue && (
+                                                  <span className="rounded-full bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.2 shadow-sm">
+                                                    BEST VALUE
+                                                  </span>
+                                                )}
+                                                {v.savingsLabel && (
+                                                  <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.2 border border-emerald-300 dark:border-emerald-700">
+                                                    {v.savingsLabel}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {v.monthlyRate ? (
+                                                <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
+                                                  ₹{v.monthlyRate}/mo equivalent
+                                                </p>
+                                              ) : null}
+                                            </div>
+                                          </div>
+
+                                          <div className="text-right shrink-0">
+                                            <span className="text-xs sm:text-sm font-black text-forest dark:text-cream">
+                                              ₹{v.price.toLocaleString("en-IN")}
+                                            </span>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Price Tag */}
+                            <div className="text-right shrink-0">
+                              <span className="text-base font-black text-leaf">
+                                ₹{activePrice.toLocaleString("en-IN")}
+                              </span>
+                              <p className="text-[10px] text-ink/45 dark:text-cream/45 line-clamp-1 max-w-[120px]">
+                                {activeVariant.name}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Security & Student Guarantee Note */}
               <div className="rounded-[1.5rem] bg-leaf/10 border border-leaf/20 p-4 text-xs font-semibold text-leaf leading-5">
-                <p className="font-bold text-sm mb-1">🌿 Charan Organics Direct Academy Support</p>
+                <p className="font-bold text-sm mb-1">🌿 Charan Organics Direct Academy Guarantee</p>
                 <p>
-                  After submitting your payment request, our team verifies the UTR number with bank records.
-                  You will receive access to your formulation notes, videos, and full student discussion community.
+                  After submitting your payment request, our administration team verifies the UTR number with bank records.
+                  You will receive full access to your formulation notes, videos, downloadable PDF manuals, and verifiable certificate.
                 </p>
               </div>
             </div>
@@ -588,6 +838,44 @@ export default function EnrollPage() {
             {/* ── RIGHT COLUMN: Order Summary & UPI Payment ── */}
             <div className="space-y-6 lg:sticky lg:top-24">
               <div className="rounded-[2.5rem] bg-white p-6 sm:p-7 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-6">
+
+                {/* Auth Notification or Status Banner */}
+                {isAuthenticated === false && (
+                  <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-3.5 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <UserCheck size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1.5 flex-1">
+                        <p className="font-bold text-amber-900 dark:text-amber-200">
+                          Student Account Recommended
+                        </p>
+                        <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed text-[11px]">
+                          Sign in so this enrollment is automatically activated under your personal student dashboard upon verification.
+                        </p>
+                        <div className="pt-1 flex gap-2">
+                          <Link
+                            href={`/login?redirectTo=${encodeURIComponent(currentCheckoutUrl)}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-forest px-3 py-1 text-[11px] font-bold text-white hover:bg-leaf transition"
+                          >
+                            Log In
+                          </Link>
+                          <Link
+                            href={`/register?redirectTo=${encodeURIComponent(currentCheckoutUrl)}`}
+                            className="inline-flex items-center gap-1 rounded-full border border-forest/20 px-3 py-1 text-[11px] font-bold text-forest hover:bg-forest/5 dark:text-cream dark:border-white/20 transition"
+                          >
+                            Register
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isAuthenticated === true && userEmail && (
+                  <div className="flex items-center gap-2 rounded-2xl bg-leaf/10 border border-leaf/20 px-3.5 py-2 text-xs font-semibold text-leaf">
+                    <CheckCircle2 size={15} className="shrink-0" />
+                    <span className="truncate">Enrolling as <strong>{userEmail}</strong></span>
+                  </div>
+                )}
 
                 {/* Amount Header */}
                 <div className="flex items-center justify-between border-b border-forest/10 pb-4 dark:border-white/10">
@@ -727,7 +1015,7 @@ export default function EnrollPage() {
                       <button
                         type="button"
                         onClick={() => fileRef.current?.click()}
-                        className="mt-1.5 flex w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-forest/20 py-5 text-xs text-ink/55 hover:border-leaf/50 hover:text-leaf transition dark:border-white/15 dark:text-cream/50 bg-linen/20"
+                        className="mt-1.5 flex w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-forest/20 py-5 text-xs text-ink/55 hover:border-leaf/50 hover:text-leaf transition dark:border-white/15 dark:text-cream/50 bg-linen/20 cursor-pointer"
                       >
                         <Upload size={20} className="text-leaf" />
                         <span className="font-bold">Click to upload payment screenshot</span>
@@ -738,9 +1026,21 @@ export default function EnrollPage() {
                 </div>
 
                 {error && (
-                  <div className="rounded-2xl bg-red-50 p-3.5 text-xs font-semibold text-red-600 dark:bg-red-950/30 dark:text-red-400 flex items-center gap-2">
-                    <AlertCircle size={15} className="shrink-0" />
-                    <span>{error}</span>
+                  <div className="rounded-2xl bg-red-50 p-3.5 text-xs font-semibold text-red-600 dark:bg-red-950/30 dark:text-red-400 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={15} className="shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                    {isAuthenticated === false && (
+                      <div className="pt-1">
+                        <Link
+                          href={`/login?redirectTo=${encodeURIComponent(currentCheckoutUrl)}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-forest text-white font-bold text-xs hover:bg-leaf transition"
+                        >
+                          Log In to Student Account &rarr;
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -749,7 +1049,7 @@ export default function EnrollPage() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={submitting || selected.size === 0}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-forest py-4 text-sm font-bold text-white shadow-soft hover:bg-leaf transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-forest py-4 text-sm font-bold text-white shadow-soft hover:bg-leaf transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {submitting ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -769,5 +1069,13 @@ export default function EnrollPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function EnrollPage() {
+  return (
+    <Suspense fallback={<EnrollLoadingState />}>
+      <EnrollContent />
+    </Suspense>
   );
 }
