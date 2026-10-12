@@ -73,7 +73,12 @@ export function AdminCertificatesClient({
     courseTitle: string;
     studentName: string;
     completionPercentage: number;
+    startDate?: string;
+    endDate?: string;
   } | null>(null);
+
+  // Official Certificate Template Preview Modal
+  const [openTemplateModal, setOpenTemplateModal] = useState(false);
 
   // Platform-wide Metrics
   const totalStudents = students.length;
@@ -292,6 +297,15 @@ export function AdminCertificatesClient({
               className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 dark:text-cream/40"
             />
           </div>
+
+          {/* View Official Template Button */}
+          <button
+            onClick={() => setOpenTemplateModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-4 py-2 text-xs font-black text-amber-800 dark:text-amber-300 transition shadow-xs active:scale-95 cursor-pointer"
+          >
+            <Award size={14} className="text-amber-500" />
+            <span>View Certificate Template</span>
+          </button>
         </div>
       </div>
 
@@ -551,6 +565,12 @@ export function AdminCertificatesClient({
                                 courseTitle: course.courseTitle,
                                 studentName: student.studentName,
                                 completionPercentage: course.progressPercent,
+                                startDate: course.enrolledAtFormatted,
+                                endDate: new Date().toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                }),
                               })
                             }
                             className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-400 transition"
@@ -790,6 +810,12 @@ export function AdminCertificatesClient({
                                 courseTitle: course.courseTitle,
                                 studentName: activeModalStudent.studentName,
                                 completionPercentage: course.progressPercent,
+                                startDate: course.enrolledAtFormatted,
+                                endDate: new Date().toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                }),
                               })
                             }
                             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-sm active:scale-95"
@@ -830,7 +856,7 @@ export function AdminCertificatesClient({
         </div>
       )}
 
-      {/* ── Certificate Preview Modal ── */}
+      {/* ── Certificate Preview Modal (Student Specific) ── */}
       {certPreviewCourse && (
         <CertificateModal
           open={Boolean(certPreviewCourse)}
@@ -838,6 +864,26 @@ export function AdminCertificatesClient({
           courseTitle={certPreviewCourse.courseTitle}
           initialName={certPreviewCourse.studentName}
           completionPercentage={certPreviewCourse.completionPercentage}
+          initialStartDate={certPreviewCourse.startDate}
+          initialEndDate={certPreviewCourse.endDate}
+        />
+      )}
+
+      {/* ── Official Certificate Template Preview Modal ── */}
+      {openTemplateModal && (
+        <CertificateModal
+          open={openTemplateModal}
+          onClose={() => setOpenTemplateModal(false)}
+          courseTitle="Organic Cosmetic Formulation Masterclass"
+          initialName="Sample Student Name"
+          initialStartDate="01 Jun 2026"
+          initialEndDate={new Date().toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
+          completionPercentage={100}
+          isTemplatePreview={true}
         />
       )}
     </div>

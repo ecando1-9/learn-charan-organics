@@ -197,7 +197,7 @@ export async function rejectEnrollment(requestId: string, note?: string) {
     if (courseIds.length > 0) {
       await admin
         .from("lms_enrollments")
-        .delete()
+        .update({ status: "revoked" })
         .eq("user_id", request.user_id)
         .in("course_id", courseIds);
     }
@@ -228,18 +228,18 @@ export async function deEnrollStudent(userId: string, courseIds: string[]) {
   const { admin } = adminResult;
 
   if (courseIds.length === 0) {
-    // If no courseIds provided, de-enroll from all
+    // If no courseIds provided, revoke access for all courses
     const { error } = await admin
       .from("lms_enrollments")
-      .delete()
+      .update({ status: "revoked" })
       .eq("user_id", userId);
 
     if (error) return { error: error.message };
   } else {
-    // De-enroll from specific courses
+    // Revoke access for specific courses
     const { error } = await admin
       .from("lms_enrollments")
-      .delete()
+      .update({ status: "revoked" })
       .eq("user_id", userId)
       .in("course_id", courseIds);
 
@@ -248,5 +248,9 @@ export async function deEnrollStudent(userId: string, courseIds: string[]) {
 
   revalidatePath("/admin/students");
   revalidatePath(`/admin/students/${userId}`);
+  revalidatePath("/admin/enrollments");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/courses");
+  revalidatePath("/dashboard/certificates");
   return { success: true };
 }
