@@ -34,7 +34,7 @@ export default async function EnrollPage({
   // 2. Fetch courses on the server
   const { data: rawCourses } = await supabase
     .from("lms_courses")
-    .select("id, title, slug, thumbnail_url, youtube_url, price_inr, duration_variants, is_free, published")
+    .select("id, title, slug, description, thumbnail_url, youtube_url, price_inr, duration_variants, is_free, level, duration_minutes, published")
     .order("sort_order", { ascending: true });
 
   let allCourses = (rawCourses ?? []).map((c: any) => {
@@ -44,11 +44,14 @@ export default async function EnrollPage({
       id: c.id,
       title: c.title,
       slug: c.slug,
+      description: c.description,
       thumbnail_url: c.thumbnail_url,
       youtube_url: c.youtube_url,
       price_inr: basePrice,
       duration_variants: c.duration_variants,
       is_free: Boolean(c.is_free),
+      level: c.level,
+      duration_minutes: c.duration_minutes,
       published: c.published,
       variants,
     };
@@ -58,7 +61,7 @@ export default async function EnrollPage({
   if (course && !allCourses.some((c) => c.slug === course)) {
     const { data: directCourse } = await supabase
       .from("lms_courses")
-      .select("id, title, slug, thumbnail_url, youtube_url, price_inr, duration_variants, is_free, published")
+      .select("id, title, slug, description, thumbnail_url, youtube_url, price_inr, duration_variants, is_free, level, duration_minutes, published")
       .eq("slug", course)
       .maybeSingle();
 
@@ -68,11 +71,14 @@ export default async function EnrollPage({
         id: directCourse.id,
         title: directCourse.title,
         slug: directCourse.slug,
+        description: directCourse.description,
         thumbnail_url: directCourse.thumbnail_url,
         youtube_url: directCourse.youtube_url,
         price_inr: basePrice,
         duration_variants: directCourse.duration_variants,
         is_free: Boolean(directCourse.is_free),
+        level: directCourse.level,
+        duration_minutes: directCourse.duration_minutes,
         published: directCourse.published,
         variants: parseDurationVariants(directCourse.duration_variants, basePrice),
       });
@@ -97,11 +103,14 @@ export default async function EnrollPage({
       id: c.id,
       title: c.title,
       slug: c.slug,
+      description: c.description,
       thumbnail_url: c.thumbnail_url,
       youtube_url: c.youtube_url,
       price_inr: c.price_inr,
       duration_variants: c.duration_variants,
       is_free: c.is_free,
+      level: c.level,
+      duration_minutes: c.duration_minutes,
       variants: c.variants,
     }));
 

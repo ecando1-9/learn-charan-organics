@@ -48,6 +48,9 @@ export type CheckoutCourse = {
   id: string;
   title: string;
   slug: string;
+  description?: string | null;
+  level?: string | null;
+  duration_minutes?: number | null;
   thumbnail_url: string | null;
   youtube_url: string | null;
   price_inr: number;
@@ -830,97 +833,219 @@ export function CourseCheckout({
             </div>
           )}
 
-          {/* Other Courses to Bundle (Revenue Booster Upsell Section) */}
-          {otherCourses.length > 0 && (
-            <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-black px-3 py-0.5">
-                    🔥 Recommended Add-ons
-                  </span>
-                  <h3 className="text-base sm:text-lg font-black text-forest dark:text-cream mt-1">
-                    Bundle More Masterclasses &amp; Complete Your Formulation Suite
-                  </h3>
-                  <p className="text-xs text-ink/60 dark:text-cream/60">
-                    Indie founders who combine multiple courses formulate complete cosmetic, skincare, and soap lines faster.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelected(new Set(courses.map((c) => c.id)));
-                  }}
-                  className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3.5 py-1.5 rounded-full hover:bg-emerald-100 transition self-start shrink-0 cursor-pointer"
-                >
-                  + Add All Available ({courses.length})
-                </button>
+          {/* ══════════ ADD MORE COURSES SECTION (Upsell & Bundles) ══════════ */}
+          <div className="rounded-3xl bg-white p-5 sm:p-7 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-black px-3 py-0.5">
+                  🔥 Add More Courses &amp; Save
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-forest dark:text-cream mt-1">
+                  Add More Masterclasses to Your Order
+                </h3>
+                <p className="text-xs text-ink/60 dark:text-cream/60">
+                  Combine multiple formulation masterclasses. Select any course below, customize your duration plan, and expand your formulation certifications.
+                </p>
               </div>
 
-              <div className="grid gap-3 pt-2">
+              {otherCourses.length > 0 && (
+                <div className="flex items-center gap-2 self-start shrink-0">
+                  {otherCourses.some((c) => !selected.has(c.id)) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelected(new Set(courses.map((c) => c.id)));
+                      }}
+                      className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3.5 py-1.5 rounded-full hover:bg-emerald-100 transition cursor-pointer"
+                    >
+                      + Add All Available ({otherCourses.length})
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelected(new Set(primaryCourse ? [primaryCourse.id] : []));
+                      }}
+                      className="text-xs font-bold text-ink/60 dark:text-cream/60 bg-forest/5 dark:bg-white/5 border border-forest/15 dark:border-white/15 px-3.5 py-1.5 rounded-full hover:bg-forest/10 transition cursor-pointer"
+                    >
+                      Reset to Primary Only
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* If no other courses are available */}
+            {otherCourses.length === 0 ? (
+              <div className="rounded-2xl bg-linen/30 dark:bg-white/5 border border-dashed border-forest/20 dark:border-white/20 p-6 sm:p-8 text-center space-y-2.5">
+                <div className="mx-auto size-12 rounded-2xl bg-forest/5 dark:bg-white/10 grid place-items-center text-forest dark:text-cream">
+                  <PackageCheck size={24} className="text-leaf" />
+                </div>
+                <h4 className="text-sm sm:text-base font-bold text-forest dark:text-cream">
+                  No Additional Courses Available
+                </h4>
+                <p className="text-xs text-ink/60 dark:text-cream/60 max-w-sm mx-auto leading-relaxed">
+                  There are currently no additional courses available for enrollment. You have all active courses selected or no other masterclasses are published.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 pt-1">
                 {otherCourses.map((c) => {
                   const isAdded = selected.has(c.id);
-                  const price = getCoursePrice(c);
+                  const activeVar = getCourseActiveVariant(c);
+                  const currentPrice = activeVar.price;
 
                   return (
                     <div
                       key={c.id}
-                      className={`rounded-2xl border p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition ${
+                      className={`rounded-2xl border p-4 sm:p-5 transition-all space-y-3.5 ${
                         isAdded
-                          ? "border-emerald-600 bg-emerald-50/60 dark:border-emerald-500 dark:bg-emerald-950/30 shadow-xs"
-                          : "border-forest/10 bg-linen/20 hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
+                          ? "border-emerald-600 bg-emerald-50/50 dark:border-emerald-500 dark:bg-emerald-950/25 ring-1 ring-emerald-500/25 shadow-xs"
+                          : "border-forest/10 bg-linen/15 hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
                       }`}
                     >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <img
-                          src={getThumbnail(c)}
-                          alt={c.title}
-                          className="size-16 sm:size-18 rounded-2xl object-cover shrink-0 border border-forest/10 shadow-xs"
-                        />
-                        <div className="min-w-0">
-                          <h4 className="text-sm sm:text-base font-black text-forest dark:text-cream truncate">
-                            {c.title}
-                          </h4>
-                          <p className="text-[11px] text-ink/60 dark:text-cream/60 line-clamp-1 mt-0.5">
-                            Certified formulation video class with downloadable formulation notes.
-                          </p>
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <span className="text-xs sm:text-sm font-black text-leaf dark:text-emerald-400">
-                              ₹{price.toLocaleString("en-IN")}
+                      {/* Course Main Info */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3.5">
+                        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                          <img
+                            src={getThumbnail(c)}
+                            alt={c.title}
+                            className="size-16 sm:size-20 rounded-2xl object-cover shrink-0 border border-forest/10 shadow-xs"
+                          />
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-sm sm:text-base font-black text-forest dark:text-cream">
+                                {c.title}
+                              </h4>
+                              {isAdded && (
+                                <span className="rounded-full bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 shrink-0">
+                                  IN YOUR ORDER ✓
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-ink/65 dark:text-cream/65 line-clamp-2 leading-relaxed">
+                              {c.description ||
+                                "Comprehensive masterclass with step-by-step HD formulation demonstrations and lab-tested recipes."}
+                            </p>
+                            <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] font-bold text-leaf dark:text-emerald-400">
+                              <span className="bg-leaf/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <PlayCircle size={10} /> Video Masterclass
+                              </span>
+                              <span className="bg-leaf/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <FileText size={10} /> Formulation Notes PDF
+                              </span>
+                              <span className="bg-leaf/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Award size={10} /> Certificate
+                              </span>
+                              {c.level && (
+                                <span className="bg-forest/5 dark:bg-white/10 text-forest dark:text-cream px-2 py-0.5 rounded-full capitalize">
+                                  {c.level}
+                                </span>
+                              )}
+                              {c.duration_minutes && c.duration_minutes > 0 ? (
+                                <span className="bg-forest/5 dark:bg-white/10 text-forest dark:text-cream px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <Clock size={10} /> {Math.round(c.duration_minutes / 60) > 0 ? `${Math.round(c.duration_minutes / 60)} hrs` : `${c.duration_minutes} mins`}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Add / Added Button */}
+                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-forest/10 dark:border-white/10">
+                          <div className="text-left sm:text-right">
+                            <span className="text-[10px] text-ink/50 dark:text-cream/50 uppercase font-bold tracking-wider block">
+                              Course Price
                             </span>
-                            <span className="text-[10px] text-ink/40 dark:text-cream/40">
-                              &bull; Full Access &amp; Certification
+                            <span className="text-base sm:text-lg font-black text-leaf dark:text-emerald-400">
+                              ₹{currentPrice.toLocaleString("en-IN")}
                             </span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleCourse(c.id)}
+                            className={`w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                              isAdded
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                : "bg-forest text-white hover:bg-leaf dark:bg-emerald-600"
+                            }`}
+                            title={isAdded ? "Click to remove from order" : "Click to add to order"}
+                          >
+                            {isAdded ? (
+                              <>
+                                <Check size={14} /> Added to Order ✓
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={14} /> Add to Order (+₹{currentPrice.toLocaleString("en-IN")})
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-end shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => toggleCourse(c.id)}
-                          className={`w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                            isAdded
-                              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                              : "bg-forest text-white hover:bg-leaf dark:bg-emerald-600"
-                          }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <Check size={14} /> Added to Order ✓
-                            </>
-                          ) : (
-                            <>
-                              <Plus size={14} /> Add to Order (+₹{price.toLocaleString("en-IN")})
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      {/* Duration Plan Options for This Course */}
+                      {c.variants && c.variants.length > 0 && (
+                        <div className="pt-3 border-t border-forest/10 dark:border-white/10 space-y-2">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <p className="font-bold text-forest dark:text-cream flex items-center gap-1.5">
+                              <Clock size={12} className="text-leaf" /> Choose Access Duration &amp; Price:
+                            </p>
+                            <span className="text-leaf dark:text-emerald-400 font-extrabold text-[11px]">
+                              Selected: {activeVar.name} &bull; ₹{currentPrice.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+
+                          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
+                            {c.variants.map((v) => {
+                              const isVarSelected = activeVar.id === v.id;
+
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onClick={() => setVariant(c.id, v.id)}
+                                  className={`relative flex items-center justify-between p-2.5 rounded-xl text-left transition-all border-2 cursor-pointer ${
+                                    isVarSelected
+                                      ? "border-emerald-600 bg-white dark:bg-stone-900 shadow-xs ring-1 ring-emerald-500/30"
+                                      : "border-forest/10 bg-white/70 hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
+                                  }`}
+                                >
+                                  <div className="min-w-0 pr-1">
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="text-xs font-black text-forest dark:text-cream truncate">
+                                        {v.name}
+                                      </span>
+                                      {v.isBestValue && (
+                                        <span className="rounded-full bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.2 shadow-xs">
+                                          ⭐ BEST
+                                        </span>
+                                      )}
+                                    </div>
+                                    {v.monthlyRate ? (
+                                      <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
+                                        Only ₹{v.monthlyRate}/mo
+                                      </p>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <span className="text-xs sm:text-sm font-black text-leaf dark:text-emerald-400">
+                                      ₹{v.price.toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Order Summary Card & Proceed Button */}
           <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
@@ -952,9 +1077,20 @@ export function CourseCheckout({
                     <span className="truncate pr-2">
                       {i + 1}. <strong>{c.title}</strong> ({v.name})
                     </span>
-                    <span className="font-bold text-forest dark:text-cream shrink-0">
-                      ₹{v.price.toLocaleString("en-IN")}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-bold text-forest dark:text-cream">
+                        ₹{v.price.toLocaleString("en-IN")}
+                      </span>
+                      {selected.size > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleCourse(c.id)}
+                          className="text-[10px] text-red-500 hover:text-red-700 hover:underline cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1114,72 +1250,109 @@ export function CourseCheckout({
 
             {/* Other Courses to Bundle (Subtle & Optional) */}
             {otherCourses.length > 0 ? (
-              <div className="rounded-3xl bg-white p-4 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-3">
+              <div className="rounded-3xl bg-white p-4 sm:p-5 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-forest dark:text-cream">
-                    Want to bundle more courses? (+{otherCourses.length} available)
-                  </p>
+                  <div>
+                    <p className="text-xs font-bold text-forest dark:text-cream">
+                      Add More Courses to Your Order (+{otherCourses.length} available)
+                    </p>
+                    <p className="text-[11px] text-ink/50 dark:text-cream/50">
+                      Select additional courses or customize your duration plans
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowOtherCourses(!showOtherCourses)}
                     className="text-xs font-bold text-leaf hover:underline cursor-pointer"
                   >
-                    {showOtherCourses ? "Hide" : "View"}
+                    {showOtherCourses ? "Hide" : "View & Select Plans"}
                   </button>
                 </div>
 
                 {showOtherCourses && (
-                  <div className="space-y-2 pt-2 border-t border-forest/10 dark:border-white/10">
+                  <div className="space-y-2.5 pt-2 border-t border-forest/10 dark:border-white/10">
                     {otherCourses.map((c) => {
                       const isChecked = selected.has(c.id);
-                      const price = getCoursePrice(c);
+                      const activeVar = getCourseActiveVariant(c);
+                      const price = activeVar.price;
 
                       return (
                         <div
                           key={c.id}
-                          className={`rounded-2xl border p-2.5 flex items-center justify-between gap-2.5 transition ${
+                          className={`rounded-2xl border p-3 space-y-2.5 transition ${
                             isChecked
-                              ? "border-emerald-600 bg-emerald-50/50 dark:border-emerald-500 dark:bg-emerald-950/20"
-                              : "border-forest/10 bg-linen/30 dark:border-white/10"
+                              ? "border-emerald-600 bg-emerald-50/50 dark:border-emerald-500 dark:bg-emerald-950/20 shadow-xs"
+                              : "border-forest/10 bg-linen/20 dark:border-white/10"
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => toggleCourse(c.id)}
-                              className={`size-4 grid place-items-center rounded border transition shrink-0 ${
-                                isChecked
-                                  ? "border-emerald-600 bg-emerald-600 text-white"
-                                  : "border-forest/25 bg-white dark:border-cream/25"
-                              }`}
-                            >
-                              {isChecked && <Check size={11} />}
-                            </button>
-                            <img
-                              src={getThumbnail(c)}
-                              alt={c.title}
-                              className="size-10 rounded-xl object-cover shrink-0"
-                            />
-                            <p className="text-xs font-bold text-forest dark:text-cream truncate">
-                              {c.title}
-                            </p>
+                          <div className="flex items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleCourse(c.id)}
+                                className={`size-4 grid place-items-center rounded border transition shrink-0 cursor-pointer ${
+                                  isChecked
+                                    ? "border-emerald-600 bg-emerald-600 text-white"
+                                    : "border-forest/25 bg-white dark:border-cream/25"
+                                }`}
+                              >
+                                {isChecked && <Check size={11} />}
+                              </button>
+                              <img
+                                src={getThumbnail(c)}
+                                alt={c.title}
+                                className="size-10 rounded-xl object-cover shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-forest dark:text-cream truncate">
+                                  {c.title}
+                                </p>
+                                <p className="text-[10px] text-ink/50 dark:text-cream/50 truncate">
+                                  Plan: <strong>{activeVar.name}</strong>
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-black text-leaf dark:text-emerald-400">
+                                ₹{price.toLocaleString("en-IN")}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleCourse(c.id)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition cursor-pointer ${
+                                  isChecked
+                                    ? "bg-emerald-600 text-white hover:bg-red-600"
+                                    : "bg-forest/10 text-forest hover:bg-forest/20 dark:bg-white/10 dark:text-cream"
+                                }`}
+                              >
+                                {isChecked ? "Added ✓" : "+ Add"}
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs font-black text-leaf">
-                              ₹{price.toLocaleString("en-IN")}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => toggleCourse(c.id)}
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${
-                                isChecked
-                                  ? "bg-emerald-600 text-white"
-                                  : "bg-forest/10 text-forest hover:bg-forest/20 dark:bg-white/10 dark:text-cream"
-                              }`}
-                            >
-                              {isChecked ? "Added ✓" : "+ Add"}
-                            </button>
-                          </div>
+
+                          {/* Variant Options Pills in Step 2 */}
+                          {c.variants && c.variants.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap pt-1 pl-6">
+                              <span className="text-[10px] font-semibold text-ink/50 dark:text-cream/50">Plan:</span>
+                              {c.variants.map((v) => {
+                                const isV = activeVar.id === v.id;
+                                return (
+                                  <button
+                                    key={v.id}
+                                    type="button"
+                                    onClick={() => setVariant(c.id, v.id)}
+                                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                      isV
+                                        ? "border-emerald-600 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 ring-1 ring-emerald-500/30"
+                                        : "border-forest/15 bg-white text-forest/70 hover:border-forest/30 dark:border-white/10 dark:bg-white/5"
+                                    }`}
+                                  >
+                                    {v.name} (₹{v.price})
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1190,7 +1363,7 @@ export function CourseCheckout({
               <div className="rounded-2xl bg-white p-3.5 shadow-xs dark:bg-white/5 border border-forest/10 dark:border-white/10 flex items-center gap-2.5 text-xs text-ink/65 dark:text-cream/65">
                 <CheckCircle2 size={15} className="text-leaf shrink-0" />
                 <p>
-                  You are enrolling in <strong>{primaryCourse?.title}</strong>.
+                  You are enrolling in <strong>{primaryCourse?.title}</strong>. No additional courses available at this time.
                 </p>
               </div>
             )}
