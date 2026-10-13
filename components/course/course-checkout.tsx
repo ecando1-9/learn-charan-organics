@@ -6,6 +6,8 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import {
   ArrowLeft,
+  ArrowRight,
+  Plus,
   CheckCircle2,
   Copy,
   Loader2,
@@ -182,6 +184,7 @@ export function CourseCheckout({
   const [submittedUtr, setSubmittedUtr] = useState("");
   const [error, setError] = useState("");
   const [showOtherCourses, setShowOtherCourses] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState<"bundle" | "payment">("bundle");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Authentication State & Modal
@@ -624,7 +627,9 @@ export function CourseCheckout({
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                if (primaryCourse) {
+                if (checkoutStep === "payment") {
+                  setCheckoutStep("bundle");
+                } else if (primaryCourse) {
                   router.push(`/courses/${primaryCourse.slug}`);
                 } else {
                   router.back();
@@ -637,10 +642,14 @@ export function CourseCheckout({
             </button>
             <div>
               <h1 className="text-base sm:text-lg font-black text-forest dark:text-cream leading-tight">
-                Course Enrollment Checkout
+                {checkoutStep === "bundle"
+                  ? "Step 1: Choose Masterclasses & Bundles"
+                  : "Step 2: Instant UPI Payment & Access"}
               </h1>
               <p className="text-[11px] text-ink/55 dark:text-cream/55">
-                Instant UPI Payment &middot; Verified within 24 Hours
+                {checkoutStep === "bundle"
+                  ? "Add recommended courses to your order & boost your formulations"
+                  : "Scan QR Code · 100% Verified Manual Bank Activation"}
               </p>
             </div>
           </div>
@@ -657,6 +666,333 @@ export function CourseCheckout({
         </div>
       </div>
 
+      {/* ── Top 2-Step Progress Indicator ── */}
+      <div className="border-b border-forest/10 bg-white/60 backdrop-blur-xs dark:bg-white/[0.02] dark:border-white/10">
+        <div className="mx-auto flex max-w-xl items-center justify-center gap-4 sm:gap-8 px-4 py-3 text-xs sm:text-sm font-bold">
+          <button
+            type="button"
+            onClick={() => setCheckoutStep("bundle")}
+            className={`flex items-center gap-2 pb-1 border-b-2 transition cursor-pointer ${
+              checkoutStep === "bundle"
+                ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 font-black"
+                : "border-transparent text-ink/50 dark:text-cream/50 hover:text-emerald-600"
+            }`}
+          >
+            <span
+              className={`size-5 rounded-full text-[11px] grid place-items-center text-white ${
+                checkoutStep === "bundle" ? "bg-emerald-600" : "bg-ink/30"
+              }`}
+            >
+              1
+            </span>
+            <span>1. Choose Courses &amp; Add-ons</span>
+          </button>
+
+          <div className="h-0.5 w-8 sm:w-16 bg-forest/15 dark:bg-white/15" />
+
+          <button
+            type="button"
+            onClick={() => {
+              if (selected.size === 0) {
+                setError("Please select at least one course to enroll.");
+                return;
+              }
+              if (!authenticated) {
+                setShowAuthModal(true);
+                return;
+              }
+              setError("");
+              setCheckoutStep("payment");
+            }}
+            className={`flex items-center gap-2 pb-1 border-b-2 transition cursor-pointer ${
+              checkoutStep === "payment"
+                ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 font-black"
+                : "border-transparent text-ink/50 dark:text-cream/50 hover:text-emerald-600"
+            }`}
+          >
+            <span
+              className={`size-5 rounded-full text-[11px] grid place-items-center text-white ${
+                checkoutStep === "payment" ? "bg-emerald-600" : "bg-ink/30"
+              }`}
+            >
+              2
+            </span>
+            <span>2. UPI Payment &amp; Proof</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ══════════ STEP 1: BUNDLE & COURSE CUSTOMIZATION ══════════ */}
+      {checkoutStep === "bundle" ? (
+        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 space-y-6">
+          {/* Primary Selected Masterclass Card */}
+          {primaryCourse && (
+            <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-black px-3 py-0.5">
+                  <CheckCircle2 size={13} /> Selected Masterclass
+                </span>
+                <span className="text-xs font-bold text-leaf dark:text-emerald-400">
+                  Charan Organics Academy
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3.5 pb-4 border-b border-forest/10 dark:border-white/10">
+                <img
+                  src={getThumbnail(primaryCourse)}
+                  alt={primaryCourse.title}
+                  className="size-16 sm:size-20 shrink-0 rounded-2xl object-cover border border-forest/10 dark:border-white/10 shadow-xs"
+                />
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base sm:text-lg font-black text-forest dark:text-cream leading-snug">
+                    {primaryCourse.title}
+                  </h2>
+                  <p className="text-[11px] text-ink/60 dark:text-cream/60 mt-0.5 line-clamp-1">
+                    Certified botanical cosmetic formulation course with printable recipes &amp; notes.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-leaf dark:text-emerald-400">
+                    <span className="bg-leaf/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <PlayCircle size={11} /> Video Masterclass
+                    </span>
+                    <span className="bg-leaf/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <FileText size={11} /> Formulation Notes
+                    </span>
+                    <span className="bg-leaf/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Award size={11} /> Certificate
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Duration Plan Options for Primary Course */}
+              {primaryCourse.variants && primaryCourse.variants.length > 0 && (
+                <div className="space-y-2.5">
+                  <p className="font-bold text-forest dark:text-cream text-xs flex items-center gap-1.5">
+                    <Clock size={13} className="text-leaf" /> Select Access Duration:
+                  </p>
+
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {primaryCourse.variants.map((v) => {
+                      const activeVar = getCourseActiveVariant(primaryCourse);
+                      const isCurrent = activeVar.id === v.id;
+
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setVariant(primaryCourse.id, v.id)}
+                          className={`relative flex items-center justify-between p-3 rounded-2xl text-left transition-all border-2 cursor-pointer ${
+                            isCurrent
+                              ? "border-emerald-600 bg-emerald-50/70 shadow-xs dark:border-emerald-500 dark:bg-emerald-950/30"
+                              : "border-forest/10 bg-white hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 pr-1">
+                            <div
+                              className={`size-4 rounded-full border-2 grid place-items-center shrink-0 transition ${
+                                isCurrent
+                                  ? "border-emerald-600 bg-emerald-600 dark:border-emerald-500"
+                                  : "border-forest/30 dark:border-cream/30"
+                              }`}
+                            >
+                              {isCurrent && <div className="size-1.5 rounded-full bg-white" />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-xs font-black text-forest dark:text-cream">
+                                  {v.name}
+                                </span>
+                                {v.isBestValue && (
+                                  <span className="rounded-full bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.2 shadow-xs">
+                                    ⭐ BEST VALUE
+                                  </span>
+                                )}
+                              </div>
+                              {v.monthlyRate ? (
+                                <p className="text-[10px] text-ink/50 dark:text-cream/50 mt-0.5">
+                                  Only ₹{v.monthlyRate}/mo
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-sm font-black text-leaf dark:text-emerald-400">
+                              ₹{v.price.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Other Courses to Bundle (Revenue Booster Upsell Section) */}
+          {otherCourses.length > 0 && (
+            <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-black px-3 py-0.5">
+                    🔥 Recommended Add-ons
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black text-forest dark:text-cream mt-1">
+                    Bundle More Masterclasses &amp; Complete Your Formulation Suite
+                  </h3>
+                  <p className="text-xs text-ink/60 dark:text-cream/60">
+                    Indie founders who combine multiple courses formulate complete cosmetic, skincare, and soap lines faster.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelected(new Set(courses.map((c) => c.id)));
+                  }}
+                  className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3.5 py-1.5 rounded-full hover:bg-emerald-100 transition self-start shrink-0 cursor-pointer"
+                >
+                  + Add All Available ({courses.length})
+                </button>
+              </div>
+
+              <div className="grid gap-3 pt-2">
+                {otherCourses.map((c) => {
+                  const isAdded = selected.has(c.id);
+                  const price = getCoursePrice(c);
+
+                  return (
+                    <div
+                      key={c.id}
+                      className={`rounded-2xl border p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition ${
+                        isAdded
+                          ? "border-emerald-600 bg-emerald-50/60 dark:border-emerald-500 dark:bg-emerald-950/30 shadow-xs"
+                          : "border-forest/10 bg-linen/20 hover:border-forest/25 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <img
+                          src={getThumbnail(c)}
+                          alt={c.title}
+                          className="size-16 sm:size-18 rounded-2xl object-cover shrink-0 border border-forest/10 shadow-xs"
+                        />
+                        <div className="min-w-0">
+                          <h4 className="text-sm sm:text-base font-black text-forest dark:text-cream truncate">
+                            {c.title}
+                          </h4>
+                          <p className="text-[11px] text-ink/60 dark:text-cream/60 line-clamp-1 mt-0.5">
+                            Certified formulation video class with downloadable formulation notes.
+                          </p>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-black text-leaf dark:text-emerald-400">
+                              ₹{price.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[10px] text-ink/40 dark:text-cream/40">
+                              &bull; Full Access &amp; Certification
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => toggleCourse(c.id)}
+                          className={`w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                            isAdded
+                              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                              : "bg-forest text-white hover:bg-leaf dark:bg-emerald-600"
+                          }`}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Check size={14} /> Added to Order ✓
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={14} /> Add to Order (+₹{price.toLocaleString("en-IN")})
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Order Summary Card & Proceed Button */}
+          <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
+            <div className="flex items-center justify-between border-b border-forest/10 pb-4 dark:border-white/10">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-ink/50 dark:text-cream/50">
+                  Total Order Amount
+                </span>
+                <p className="text-2xl sm:text-3xl font-black text-forest dark:text-cream mt-0.5">
+                  {formatCurrency(totalAmount)}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-3 py-1 text-xs font-black">
+                  {selected.size} {selected.size === 1 ? "Course" : "Courses"} Selected
+                </span>
+              </div>
+            </div>
+
+            {/* Selected Courses Breakdown */}
+            <div className="space-y-1.5">
+              {selectedCourses.map((c, i) => {
+                const v = getCourseActiveVariant(c);
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between text-xs py-1 text-ink/75 dark:text-cream/75"
+                  >
+                    <span className="truncate pr-2">
+                      {i + 1}. <strong>{c.title}</strong> ({v.name})
+                    </span>
+                    <span className="font-bold text-forest dark:text-cream shrink-0">
+                      ₹{v.price.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {error && (
+              <div className="rounded-2xl bg-red-50 p-3 text-xs font-semibold text-red-600 dark:bg-red-950/30 dark:text-red-400 flex items-center gap-2">
+                <AlertCircle size={15} className="shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                if (selected.size === 0) {
+                  setError("Please select at least one course to enroll.");
+                  return;
+                }
+                if (!authenticated) {
+                  setShowAuthModal(true);
+                  return;
+                }
+                setError("");
+                setCheckoutStep("payment");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 py-3.5 sm:py-4 text-sm sm:text-base font-black text-white shadow-lg transition active:scale-98 cursor-pointer"
+            >
+              <span>Proceed to Payment ({formatCurrency(totalAmount)})</span>
+              <ArrowRight size={18} />
+            </button>
+            <p className="text-center text-[11px] text-ink/50 dark:text-cream/50">
+              Next Step: Scan Official UPI QR Code &bull; GPay, PhonePe, Paytm &bull; Instant 24hr Verification
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr] items-start">
 
@@ -668,11 +1004,18 @@ export function CourseCheckout({
               <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-forest/5 text-forest dark:bg-white/10 dark:text-cream text-[11px] font-bold px-3 py-0.5">
-                    <Sparkles size={12} className="text-leaf" /> Enrolling In Masterclass
+                    <Sparkles size={12} className="text-leaf" /> Enrolling In {selected.size} Masterclass{selected.size === 1 ? "" : "es"}
                   </span>
-                  <span className="text-xs font-bold text-leaf dark:text-emerald-400">
-                    Charan Organics Academy
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCheckoutStep("bundle");
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <ArrowLeft size={13} /> Modify Order / Add More
+                  </button>
                 </div>
 
                 {/* Course Header (Clean & Subtle, Not Overly Big) */}
@@ -1132,6 +1475,7 @@ export function CourseCheckout({
 
         </div>
       </div>
+      )}
 
       {/* ══════════════ AUTH MODAL POPUP ══════════════ */}
       {showAuthModal && (

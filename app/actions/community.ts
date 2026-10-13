@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkUserIsAdmin } from "@/lib/supabase/profile";
+import { checkUserIsAdmin, syncAuthUsersToLmsProfiles } from "@/lib/supabase/profile";
 
 export async function sendGroupMessage(
   groupId: string,
@@ -408,6 +408,13 @@ export async function getGroupMembers(groupId: string) {
 export async function getAllStudents() {
   const { isAdmin } = await getCurrentUserRole();
   if (!isAdmin) return [];
+
+  // Ensure all registered auth users are synced into lms_profiles
+  try {
+    await syncAuthUsersToLmsProfiles();
+  } catch (err) {
+    console.warn("[getAllStudents] Auto-sync auth users error:", err);
+  }
 
   const admin = createAdminClient();
 

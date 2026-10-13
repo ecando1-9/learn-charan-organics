@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Plus, Trash2, UserPlus, Users, X, Search, Check, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getAllStudents } from "@/app/actions/community";
 import type { Group } from "@/lib/types";
 
 type Profile = { id: string; full_name: string | null; email: string };
@@ -16,6 +17,7 @@ export function AdminCommunity() {
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [groupMembers, setGroupMembers] = useState<Profile[]>([]);
   const [addingUser, setAddingUser] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
   const [form, setForm] = useState({ name: "", description: "" });
 
   const supabase = createClient();
@@ -31,22 +33,14 @@ export function AdminCommunity() {
   const [students, setStudents] = useState<ProfileWithEnrollments[]>([]);
 
   async function fetchStudents() {
-    // Fetch all profiles
-    const { data: profiles } = await supabase.from("lms_profiles").select("id, full_name, email").order("full_name");
-    
-    // Fetch active enrollments
-    const { data: enrollments } = await supabase.from("lms_enrollments").select("user_id, course_id, lms_courses(title)").eq("status", "active");
-
-    const mapped = (profiles ?? []).map((p: any) => {
-      const userEnrollments = (enrollments ?? []).filter((e: any) => e.user_id === p.id);
-      return {
-        ...p,
-        isPaid: userEnrollments.length > 0,
-        enrolledCourses: userEnrollments.map((e: any) => e.lms_courses?.title).filter(Boolean)
-      };
-    });
-
-    setStudents(mapped as ProfileWithEnrollments[]);
+    try {
+      const res = await getAllStudents();
+      setStudents(res as ProfileWithEnrollments[]);
+    } catch {
+      // Fallback
+      const { data: profiles } = await supabase.from("lms_profiles").select("id, full_name, email").order("full_name");
+      setStudents((profiles ?? []).map((p: any) => ({ ...p, isPaid: false, enrolledCourses: [] })));
+    }
   }
 
   async function fetchGroupMembers(groupId: string) {
@@ -212,12 +206,86 @@ export function AdminCommunity() {
             <p className="mt-1 text-sm text-ink/60 dark:text-cream/60 mb-4">Add or remove students from this group.</p>
 
             {/* Add member controls */}
-            <div className="mb-4 space-y-2">
+            <div className="mb-4 space-y-3">
+              {/* Instant Search Bar */}
+              <div className="relative">
+                <Search
+                  size={15}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40 dark:text-cream/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Search registered student by name or email..."
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  className="w-full rounded-2xl border border-forest/20 bg-linen pl-10 pr-4 py-2.5 text-xs sm:text-sm font-medium text-forest outline-none focus:ring-2 focus:ring-leaf dark:border-white/10 dark:bg-[#11221a] dark:text-cream"
+                />
+                {studentSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setStudentSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink dark:text-cream/40"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtered Quick Add Results if searching */}
+              {studentSearch.trim() && (
+                <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-2xl border border-forest/15 bg-white p-2.5 dark:bg-[#0e1d16] dark:border-white/15">
+                  {nonMembers.filter((s: any) =>
+                    (s.full_name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+                    (s.email || "").toLowerCase().includes(studentSearch.toLowerCase())
+                  ).length === 0 ? (
+                    <p className="text-xs text-ink/50 dark:text-cream/50 p-2 text-center">
+                      No matching students found or all matching students already in group.
+                    </p>
+                  ) : (
+                    nonMembers
+                      .filter((s: any) =>
+                        (s.full_name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+                        (s.email || "").toLowerCase().includes(studentSearch.toLowerCase())
+                      )
+                      .slice(0, 8)
+                      .map((s: any) => (
+                        <div
+                          key={s.id}
+                          className="flex items-center justify-between gap-2 p-2 rounded-xl bg-linen/50 hover:bg-linen dark:bg-white/5 dark:hover:bg-white/10 transition"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-forest dark:text-cream truncate">
+                              {s.full_name ?? s.email}
+                            </p>
+                            <p className="text-[10px] text-ink/50 dark:text-cream/50 truncate">
+                              {s.email} · {s.isPaid ? "✅ Enrolled Student" : "👤 Registered Account"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await supabase.from("lms_group_members").upsert(
+                                { group_id: activeGroup.id, user_id: s.id },
+                                { onConflict: "group_id,user_id" }
+                              );
+                              fetchGroupMembers(activeGroup.id);
+                            }}
+                            className="shrink-0 px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <UserPlus size={12} /> Add
+                          </button>
+                        </div>
+                      ))
+                  )}
+                </div>
+              )}
+
+              {/* Standard Dropdown Select */}
               <div className="flex gap-2">
                 <select
                   value={addingUser}
                   onChange={e => setAddingUser(e.target.value)}
-                  className="flex-1 rounded-2xl border border-forest/20 bg-linen px-3.5 py-2.5 text-sm font-medium text-forest focus:outline-none focus:ring-2 focus:ring-leaf dark:border-white/10 dark:bg-[#11221a] dark:text-cream"
+                  className="flex-1 rounded-2xl border border-forest/20 bg-linen px-3.5 py-2.5 text-xs sm:text-sm font-medium text-forest focus:outline-none focus:ring-2 focus:ring-leaf dark:border-white/10 dark:bg-[#11221a] dark:text-cream"
                 >
                   <option value="" className="bg-white text-forest dark:bg-[#11221a] dark:text-cream">
                     Select LMS student to add ({nonMembers.length} available)...
@@ -235,9 +303,9 @@ export function AdminCommunity() {
                 <button
                   onClick={handleAddMember}
                   disabled={!addingUser}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-5 py-2.5 text-sm font-bold text-white hover:bg-forest transition disabled:opacity-50 shrink-0"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-forest transition disabled:opacity-50 shrink-0 cursor-pointer"
                 >
-                  <UserPlus size={15} /> Add Student
+                  <UserPlus size={15} /> Add
                 </button>
               </div>
 
@@ -245,7 +313,7 @@ export function AdminCommunity() {
                 <button
                   type="button"
                   onClick={handleAddAllMembers}
-                  className="w-full py-2 px-3 text-xs font-bold text-leaf hover:text-forest dark:text-emerald-400 rounded-xl bg-forest/5 hover:bg-forest/10 dark:bg-white/5 transition border border-forest/10 dark:border-white/10 flex items-center justify-center gap-1.5"
+                  className="w-full py-2 px-3 text-xs font-bold text-leaf hover:text-forest dark:text-emerald-400 rounded-xl bg-forest/5 hover:bg-forest/10 dark:bg-white/5 transition border border-forest/10 dark:border-white/10 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Users size={14} /> Add All {nonMembers.length} LMS Students to this Group
                 </button>

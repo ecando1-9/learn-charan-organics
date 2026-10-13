@@ -1,6 +1,7 @@
 import { AdminConfigNotice } from "@/components/admin/admin-config-notice";
 import { createAdminClient, getAdminClientConfigError } from "@/lib/supabase/admin";
 import { StudentsClient } from "@/components/admin/students-client";
+import { syncAuthUsersToLmsProfiles } from "@/lib/supabase/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -20,31 +21,22 @@ export default async function AdminStudentsPage() {
     return <AdminConfigNotice message={adminConfigError} />;
   }
 
+  // Ensure all registered auth users are synced into lms_profiles
+  try {
+    await syncAuthUsersToLmsProfiles();
+  } catch (err) {
+    console.warn("[AdminStudentsPage] Auto-sync auth users error:", err);
+  }
+
   const admin = createAdminClient();
 
-  const [requestUsersRes, enrollmentsRes, progressUsersRes, communityUsersRes] = await Promise.all([
-    admin.from("lms_enrollment_requests").select("user_id"),
+  const [profilesRes, enrollmentsRes] = await Promise.all([
+    admin
+      .from("lms_profiles")
+      .select("id, full_name, email, role, suspended, created_at")
+      .order("created_at", { ascending: false }),
     admin.from("lms_enrollments").select("user_id, status"),
-    admin.from("lms_progress").select("user_id"),
-    admin.from("lms_community_members").select("user_id"),
   ]);
-
-  const lmsUserIds = Array.from(
-    new Set([
-      ...(requestUsersRes.data ?? []).map((r: any) => r.user_id),
-      ...(enrollmentsRes.data ?? []).map((e: any) => e.user_id),
-      ...(progressUsersRes.data ?? []).map((p: any) => p.user_id),
-      ...(communityUsersRes.data ?? []).map((c: any) => c.user_id),
-    ].filter(Boolean))
-  );
-
-  const profilesRes = lmsUserIds.length > 0
-    ? await admin
-        .from("lms_profiles")
-        .select("id, full_name, email, role, suspended, created_at")
-        .in("id", lmsUserIds)
-        .order("created_at", { ascending: false })
-    : { data: [] };
 
   const rawProfiles = profilesRes.data ?? [];
   const rawEnrollments = enrollmentsRes.data ?? [];

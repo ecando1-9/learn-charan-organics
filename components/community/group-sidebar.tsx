@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Users2, Search, Plus, X, Loader2 } from "lucide-react";
+import { Users2, Search, Plus, X, Loader2, MessageSquare, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createGroup } from "@/app/actions/community";
+import { createClient } from "@/lib/supabase/client";
 
 function formatChatTime(dateStr?: string) {
   if (!dateStr) return "";
@@ -29,6 +30,89 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
   const router = useRouter();
   const isIndex = pathname === "/community";
   const [search, setSearch] = useState("");
+  const [groupsList, setGroupsList] = useState<any[]>(groups);
+  const [incomingToast, setIncomingToast] = useState<{
+    groupName: string;
+    groupSlug: string;
+    sender: string;
+    text: string;
+  } | null>(null);
+
+  // Sync initial groups
+  useEffect(() => {
+    setGroupsList(groups);
+  }, [groups]);
+
+  // Realtime subscription for incoming messages across all groups
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("community_sidebar_messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "lms_group_messages",
+        },
+        async (payload) => {
+          const newMsg = payload.new;
+          const targetGroup = groupsList.find((g) => g.id === newMsg.group_id);
+
+          if (!targetGroup) return;
+
+          // Fetch sender profile
+          const { data: profile } = await supabase
+            .from("lms_profiles")
+            .select("full_name")
+            .eq("id", newMsg.user_id)
+            .maybeSingle();
+
+          const senderName = profile?.full_name || "Member";
+          const snippet = newMsg.body || (newMsg.file_name ? `📎 ${newMsg.file_name}` : "Shared link");
+
+          // Update group in list & place at top
+          setGroupsList((prev) => {
+            const updated = prev.map((g) => {
+              if (g.id === newMsg.group_id) {
+                return {
+                  ...g,
+                  last_message_text: `${senderName}: ${snippet}`,
+                  last_message_at: newMsg.created_at || new Date().toISOString(),
+                };
+              }
+              return g;
+            });
+            // Re-sort with active group on top
+            return updated.sort((a, b) => {
+              const timeA = new Date(a.last_message_at || 0).getTime();
+              const timeB = new Date(b.last_message_at || 0).getTime();
+              return timeB - timeA;
+            });
+          });
+
+          // Show floating popup if user is not currently in this specific group
+          const currentGroupId = pathname.split("/community/")[1];
+          if (currentGroupId !== targetGroup.id && currentGroupId !== targetGroup.slug) {
+            setIncomingToast({
+              groupName: targetGroup.name,
+              groupSlug: targetGroup.slug || targetGroup.id,
+              sender: senderName,
+              text: snippet,
+            });
+
+            setTimeout(() => {
+              setIncomingToast(null);
+            }, 5000);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [groupsList, pathname]);
 
   // Create Group Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -60,7 +144,7 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
     }
   }
 
-  const filteredGroups = groups.filter((g) =>
+  const filteredGroups = groupsList.filter((g) =>
     g.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -72,6 +156,34 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
           !isIndex && "hidden lg:flex" // Hide on mobile if a chat is active
         )}
       >
+        {/* Real-time Message Alert Toast */}
+        {incomingToast && (
+          <div className="p-2.5 bg-emerald-600 text-white animate-in fade-in slide-in-from-top duration-200">
+            <Link
+              href={`/community/${incomingToast.groupSlug}`}
+              onClick={() => setIncomingToast(null)}
+              className="flex items-center justify-between gap-2 text-xs"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="grid size-6 place-items-center rounded-full bg-white/20 shrink-0">
+                  <Bell size={12} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-bold truncate">
+                    {incomingToast.groupName} &middot; {incomingToast.sender}
+                  </p>
+                  <p className="text-[10px] text-white/80 truncate">
+                    {incomingToast.text}
+                  </p>
+                </div>
+              </div>
+              <span className="shrink-0 text-[10px] bg-white text-emerald-800 font-black px-2 py-0.5 rounded-full">
+                Open
+              </span>
+            </Link>
+          </div>
+        )}
+
         {/* Sidebar Header */}
         <div className="p-4 border-b border-gray-200 dark:border-white/10 bg-[#e9edef] dark:bg-[#202c33]">
           <div className="flex items-center justify-between">

@@ -254,11 +254,11 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         <div className="p-4 sm:p-6">
           <p className="hidden text-sm font-bold uppercase tracking-[0.18em] text-moss lg:block">{course.title}</p>
           <h1 className="mt-1 text-xl font-black sm:text-2xl">{lesson.title}</h1>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-col sm:flex-row flex-wrap gap-2.5 sm:gap-3">
             <Button
               onClick={handleToggleCompletion}
               disabled={togglingCompletion}
-              className={`text-sm transition-all ${
+              className={`w-full sm:w-auto py-2.5 sm:py-2 text-xs sm:text-sm font-bold transition-all ${
                 isCompleted
                   ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                   : "bg-leaf hover:bg-moss text-white"
@@ -272,16 +272,26 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
               {isCompleted ? "Completed ✅" : "Mark complete"}
             </Button>
             {pdfResources.length > 0 && (
-              <Button
-                onClick={() => setShowNotes(true)}
-                variant="secondary"
-                className="border-white/10 bg-white/10 text-white hover:bg-white/15 text-sm"
-              >
-                <FileText size={16} />
-                {pdfResources.length > 1
-                  ? `Course Materials & PDFs (${pdfResources.length})`
-                  : "View notes (Protected)"}
-              </Button>
+              <>
+                <Button
+                  onClick={() => setShowNotes(true)}
+                  variant="secondary"
+                  className="w-full sm:w-auto py-2.5 sm:py-2 border-white/10 bg-white/10 text-white hover:bg-white/15 text-xs sm:text-sm font-bold"
+                >
+                  <FileText size={16} />
+                  {pdfResources.length > 1
+                    ? `Formulation PDFs (${pdfResources.length})`
+                    : "View Notes & Formulas"}
+                </Button>
+                <a
+                  href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}&download=true`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl sm:rounded-full bg-emerald-700/60 hover:bg-emerald-700 border border-emerald-500/40 px-4 py-2.5 sm:py-2 text-xs sm:text-sm font-bold text-white transition shadow-xs"
+                >
+                  <Download size={15} /> Download PDF
+                </a>
+              </>
             )}
           </div>
 
@@ -325,55 +335,68 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         </div>
       )}
 
-      {/* Secure PDF Modal */}
+      {/* Secure PDF Modal (Mobile-Optimized) */}
       {showNotes && activePdf && (
         <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col backdrop-blur-2xl">
           <div className="flex flex-col border-b border-white/10 text-white">
-            <div className="flex justify-between items-center p-4">
-              <div className="font-bold flex items-center gap-2">
-                <Lock size={18} className="text-leaf shrink-0" />
-                <span className="truncate max-w-[220px] sm:max-w-md">
-                  {activePdf.title || "Protected Formulation Notes"}
+            <div className="flex justify-between items-center p-3 sm:p-4 gap-2">
+              <div className="font-bold flex items-center gap-2 min-w-0">
+                <Lock size={16} className="text-leaf shrink-0" />
+                <span className="truncate text-xs sm:text-sm">
+                  {activePdf.title || "Formulation Notes"}
                 </span>
                 {pdfResources.length > 1 && (
                   <span className="rounded-full bg-leaf/20 text-leaf text-[10px] font-black px-2 py-0.5 shrink-0">
-                    {selectedPdfIndex + 1} of {pdfResources.length}
+                    {selectedPdfIndex + 1}/{pdfResources.length}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <a
                   href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}&download=true`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-3.5 py-1.5 text-xs font-bold text-white hover:bg-moss transition shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-3 py-1.5 text-xs font-bold text-white hover:bg-moss transition shadow-sm"
                 >
-                  <Download size={13} /> Download PDF
+                  <Download size={13} /> <span className="hidden sm:inline">Download</span> PDF
                 </a>
                 <button
                   onClick={() => setShowNotes(false)}
-                  className="p-2 hover:bg-white/10 rounded-full transition"
+                  className="p-1.5 sm:p-2 hover:bg-white/10 rounded-full transition"
                   title="Close"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
+            {/* Mobile helper notice for phone screens */}
+            <div className="px-3 pb-2.5 sm:hidden flex items-center justify-between text-[11px] text-cream/70 bg-white/5 border-t border-white/5 pt-1.5">
+              <span>📱 Viewing on phone?</span>
+              <a
+                href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}&download=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-400 font-bold underline"
+              >
+                Tap to Open in Full Screen →
+              </a>
+            </div>
+
             {/* Multiple PDF Selector Tabs */}
             {pdfResources.length > 1 && (
-              <div className="flex items-center gap-2 px-4 pb-3 overflow-x-auto scrollbar-none">
+              <div className="flex items-center gap-2 px-3 sm:px-4 pb-2.5 overflow-x-auto scrollbar-none">
                 {pdfResources.map((item, idx) => (
                   <button
                     key={item.id || idx}
                     onClick={() => setSelectedPdfIndex(idx)}
-                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold whitespace-nowrap transition ${
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold whitespace-nowrap transition ${
                       selectedPdfIndex === idx
                         ? "bg-leaf text-white shadow-sm"
                         : "bg-white/10 text-cream/70 hover:bg-white/20 hover:text-white"
                     }`}
                   >
-                    <FileText size={13} />
+                    <FileText size={12} />
                     <span>{item.title}</span>
                   </button>
                 ))}
