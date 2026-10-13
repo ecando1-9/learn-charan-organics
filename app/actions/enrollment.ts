@@ -91,7 +91,7 @@ export async function approveEnrollment(requestId: string) {
   // Get the request details
   const { data: request, error: reqError } = await admin
     .from("lms_enrollment_requests")
-    .select("user_id, course_ids, amount_inr, selected_all, utr_number")
+    .select("user_id, course_ids, amount_inr, selected_all, utr_number, course_title")
     .eq("id", requestId)
     .single();
 
@@ -175,22 +175,28 @@ export async function approveEnrollment(requestId: string) {
   }
 
   if (studentEmail) {
-    sendEnrollmentApprovalEmail({
-      studentEmail,
-      studentName: studentName || studentEmail.split("@")[0] || "Valued Learner",
-      courses: fetchedCourses.map((c: any) => ({
-        id: c.id,
-        title: c.title,
-        price: Number(c.price_inr) || 0,
-        slug: c.slug,
-        thumbnail_url: c.thumbnail_url || null,
-      })),
-      totalAmount: Number(request.amount_inr) || 0,
-      utrNumber: request.utr_number,
-      requestId,
-    }).catch((err) => {
-      console.error("[Email Notification] Could not send approval email:", err);
-    });
+    try {
+      const emailResult = await sendEnrollmentApprovalEmail({
+        studentEmail,
+        studentName: studentName || studentEmail.split("@")[0] || "Valued Learner",
+        courses: fetchedCourses.map((c: any) => ({
+          id: c.id,
+          title: c.title,
+          price: Number(c.price_inr) || 0,
+          slug: c.slug,
+          thumbnail_url: c.thumbnail_url || null,
+        })),
+        totalAmount: Number(request.amount_inr) || 0,
+        utrNumber: request.utr_number,
+        requestId,
+        requestedCourseTitles: request.course_title,
+      });
+      if (!emailResult.success) {
+        console.warn("[Enrollment] Email dispatch warning:", emailResult.error);
+      }
+    } catch (emailErr) {
+      console.error("[Email Notification] Could not send approval email:", emailErr);
+    }
   }
 
   revalidatePath("/admin/enrollments");

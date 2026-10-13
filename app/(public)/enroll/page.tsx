@@ -21,9 +21,13 @@ export default async function EnrollPage({
   const supabase = await createClient();
 
   // 1. Check user auth status on the server
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+  } catch (err) {
+    console.warn("[EnrollPage] Could not fetch user session:", err);
+  }
 
   // If not logged in, never show checkout page — ask for login first!
   if (!user) {
@@ -32,10 +36,16 @@ export default async function EnrollPage({
   }
 
   // 2. Fetch courses on the server
-  const { data: rawCourses } = await supabase
-    .from("lms_courses")
-    .select("id, title, slug, description, thumbnail_url, youtube_url, price_inr, duration_variants, is_free, level, duration_minutes, published")
-    .order("sort_order", { ascending: true });
+  let rawCourses: any[] = [];
+  try {
+    const { data } = await supabase
+      .from("lms_courses")
+      .select("id, title, slug, description, thumbnail_url, youtube_url, price_inr, duration_variants, is_free, level, duration_minutes, published")
+      .order("sort_order", { ascending: true });
+    rawCourses = data ?? [];
+  } catch (err) {
+    console.warn("[EnrollPage] Could not fetch courses:", err);
+  }
 
   let allCourses = (rawCourses ?? []).map((c: any) => {
     const basePrice = Number(c.price_inr) || 0;
