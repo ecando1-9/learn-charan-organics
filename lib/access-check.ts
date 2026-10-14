@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type UserAccessResult = 
   | { hasAccess: true; userId?: string; role?: string }
@@ -48,7 +49,8 @@ export async function validateUserCourseAccess(courseSlug: string): Promise<User
   }
 
   // 3. Check for admin status
-  const { data: profile } = await supabase
+  const admin = createAdminClient();
+  const { data: profile } = await admin
     .from("lms_profiles")
     .select("role")
     .eq("id", user.id)

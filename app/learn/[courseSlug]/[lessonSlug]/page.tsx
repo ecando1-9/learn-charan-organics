@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { VideoPlayer } from "@/components/course/video-player";
 import { getCourseBySlug } from "@/lib/course-data";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,8 @@ export default async function LearnPage({ params }: { params: Promise<{ courseSl
 
       if (!enrollment) {
         // Check if admin (admins can always view any lesson)
-        const { data: profile } = await supabase
+        const admin = createAdminClient();
+        const { data: profile } = await admin
           .from("lms_profiles")
           .select("role")
           .eq("id", user.id)

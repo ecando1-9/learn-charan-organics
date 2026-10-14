@@ -23,7 +23,7 @@ const securityHeaders = [
       // Styles: self + inline
       "style-src 'self' 'unsafe-inline'",
       // Images: self + Unsplash + Pexels + Pixabay + YouTube + Cloudinary + Bunny CDN + data URIs
-      "img-src 'self' data: blob: https://images.pexels.com https://cdn.pixabay.com https://images.unsplash.com https://unsplash.com https://img.youtube.com https://res.cloudinary.com https://*.b-cdn.net https://i.ytimg.com https://vz-*.b-cdn.net",
+      "img-src 'self' data: blob: https://images.pexels.com https://cdn.pixabay.com https://images.unsplash.com https://unsplash.com https://img.youtube.com https://res.cloudinary.com https://*.b-cdn.net https://i.ytimg.com",
       // Fonts: self
       "font-src 'self' data:",
       // Iframes: only Bunny Stream embed + YouTube nocookie
@@ -31,7 +31,7 @@ const securityHeaders = [
       // API/fetch calls: self + Supabase
       `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.bunny.net`,
       // Media files (video/audio)
-      "media-src 'self' blob: https://*.b-cdn.net https://vz-*.b-cdn.net",
+      "media-src 'self' blob: https://*.b-cdn.net",
       // Workers
       "worker-src 'self' blob:",
     ].join("; "),
@@ -68,7 +68,6 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "img.youtube.com" },
       { protocol: "https", hostname: "res.cloudinary.com" },
       { protocol: "https", hostname: "*.b-cdn.net" },
-      { protocol: "https", hostname: "vz-*.b-cdn.net" },
     ],
   },
 

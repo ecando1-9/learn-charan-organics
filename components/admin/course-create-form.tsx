@@ -239,6 +239,7 @@ export function AddCourseModal() {
           course_id: course.id,
           title: pdfItem.title || `${title} notes`,
           storage_path: pdfItem.url,
+          downloadable: true,
         });
       }
     } else if (primaryPdfUrl) {
@@ -247,6 +248,7 @@ export function AddCourseModal() {
         course_id: course.id,
         title: `${title} notes`,
         storage_path: primaryPdfUrl,
+        downloadable: true,
       });
     }
 
@@ -530,14 +532,25 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
 
     // Upsert PDF resources to lms_pdf_resources table
     if (lessonId) {
+      await supabase.from("lms_pdf_resources").delete().eq("course_id", course.id);
       if (validPdfs.length > 0) {
         for (const pdfItem of validPdfs) {
-          await supabase.from("lms_pdf_resources")
-            .upsert({ course_id: course.id, lesson_id: lessonId, title: pdfItem.title || `${title} notes`, storage_path: pdfItem.url }, { onConflict: "course_id" });
+          await supabase.from("lms_pdf_resources").insert({
+            course_id: course.id,
+            lesson_id: lessonId,
+            title: pdfItem.title || `${title} notes`,
+            storage_path: pdfItem.url,
+            downloadable: true,
+          });
         }
       } else if (primaryPdfUrl) {
-        await supabase.from("lms_pdf_resources")
-          .upsert({ course_id: course.id, lesson_id: lessonId, title: `${title} notes`, storage_path: primaryPdfUrl }, { onConflict: "course_id" });
+        await supabase.from("lms_pdf_resources").insert({
+          course_id: course.id,
+          lesson_id: lessonId,
+          title: `${title} notes`,
+          storage_path: primaryPdfUrl,
+          downloadable: true,
+        });
       }
     }
 
@@ -957,7 +970,7 @@ function CourseModal({
                       <div className="flex items-center gap-1.5 shrink-0">
                         {item.url && (
                           <a
-                            href={item.url}
+                            href={`/api/community/download?url=${encodeURIComponent(item.url)}&name=${encodeURIComponent(item.title || "document")}&view=true`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-[11px] font-bold text-leaf hover:underline px-2 py-1 rounded bg-leaf/10"

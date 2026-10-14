@@ -57,18 +57,7 @@ export function SiteHeader() {
       const email = user.email?.toLowerCase();
       const isMeta = user.user_metadata?.role === "admin" || (email && adminEmails.includes(email));
 
-      if (isMeta) {
-        setIsAdmin(true);
-      } else if (user.id) {
-        supabase
-          .from("lms_profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            setIsAdmin(data?.role === "admin");
-          });
-      }
+      setIsAdmin(Boolean(isMeta));
     }
 
     supabase.auth.getUser().then(({ data }) => {

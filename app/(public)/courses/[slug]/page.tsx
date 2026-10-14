@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { CourseReviews } from "@/components/course/course-reviews";
 import { CourseEnrollWidget } from "@/components/course/course-enroll-widget";
 
@@ -41,7 +42,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
   let isAdmin = false;
 
   if (user && dbCourse) {
-    const { data: profile } = await supabase
+    const admin = createAdminClient();
+    const { data: profile } = await admin
       .from("lms_profiles")
       .select("role")
       .eq("id", user.id)
@@ -314,8 +316,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                         {hasAccess ? (
                           <a
                             href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(pdf.id)}&download=true`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            download={pdf.title ? `${pdf.title}.pdf` : `${course.title}-notes.pdf`}
                             className="inline-flex items-center gap-1.5 rounded-xl bg-forest px-3.5 py-1.5 text-xs font-bold text-white shadow-soft hover:bg-leaf transition active:scale-95"
                           >
                             <Download size={13} /> Download PDF

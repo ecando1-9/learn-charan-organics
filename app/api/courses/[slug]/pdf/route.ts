@@ -2,8 +2,69 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parsePdfResources, CoursePdfResource } from "@/lib/course-pdfs";
+import { v2 as cloudinary } from "cloudinary";
 
 export const dynamic = "force-dynamic";
+
+function getCloudinary() {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new Error("Cloudinary credentials missing");
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true,
+  });
+
+  return cloudinary;
+}
+
+function getSignedPdfUrl(fileUrl: string, isDownload: boolean): string {
+  try {
+    if (fileUrl.includes("cloudinary.com") && fileUrl.includes("/raw/upload/")) {
+      const cld = getCloudinary();
+      const match = fileUrl.match(/\/raw\/upload\/(?:v\d+\/)?(.+)$/);
+      if (match && match[1]) {
+        const publicId = decodeURIComponent(match[1]);
+        return cld.utils.private_download_url(publicId, "", {
+          resource_type: "raw",
+          type: "upload",
+          attachment: isDownload,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        });
+      }
+    } else if (fileUrl.includes("cloudinary.com") && fileUrl.includes("/image/upload/")) {
+      const cld = getCloudinary();
+      const match = fileUrl.match(/\/image\/upload\/(?:v\d+\/)?(.+)$/);
+      if (match && match[1]) {
+        const publicId = decodeURIComponent(match[1]).replace(/\.[^/.]+$/, "");
+        return cld.url(publicId, {
+          resource_type: "image",
+          flags: isDownload ? "attachment" : undefined,
+          secure: true,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[course-pdf] Error signing Cloudinary URL:", err);
+  }
+  return fileUrl;
+}
+
+function safePdfFilename(title?: string | null) {
+  const base = (title || "course-notes")
+    .replace(/[^a-z0-9\s._-]/gi, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-") || "course-notes";
+  return base.toLowerCase().endsWith(".pdf") ? base : `${base}.pdf`;
+}
 
 export async function GET(
   req: NextRequest,
@@ -11,18 +72,6 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized. Please log in to download course notes." },
-        { status: 401 }
-      );
-    }
-
     const admin = createAdminClient();
 
     // 1. Fetch course details
@@ -83,10 +132,24 @@ export async function GET(
       );
     }
 
-    // 3. Check access rights: Free courses, Admins, or actively Enrolled students
+    // 3. Check access rights:
+    // Free courses: immediate access
+    // Paid courses: require logged-in user who is Admin or Actively Enrolled
     const isFree = course.is_free || Number(course.price_inr) === 0;
 
     if (!isFree) {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        return NextResponse.json(
+          { error: "Please log in to view or download course formulation notes." },
+          { status: 401 }
+        );
+      }
+
       // Check admin status
       const { data: profile } = await admin
         .from("lms_profiles")
@@ -110,7 +173,7 @@ export async function GET(
           return NextResponse.json(
             {
               error:
-                "Access restricted. Only enrolled students can download formulation notes and PDFs for this course.",
+                "Access restricted. Only enrolled students can view and download formulation notes for this course.",
             },
             { status: 403 }
           );
@@ -125,7 +188,7 @@ export async function GET(
     let targetPdf: CoursePdfResource = allResources[0];
 
     if (requestedId) {
-      const found = allResources.find((r) => r.id === requestedId);
+      const found = allResources.find((r) => r.id === requestedId || r.url === requestedId);
       if (found) targetPdf = found;
     } else if (requestedIndex !== null && !isNaN(Number(requestedIndex))) {
       const idx = Number(requestedIndex);
@@ -134,16 +197,28 @@ export async function GET(
       }
     }
 
-    const pdfUrl = targetPdf.url;
     const wantsDownload = req.nextUrl.searchParams.get("download") === "true";
+    const downloadTargetUrl = getSignedPdfUrl(targetPdf.url, wantsDownload);
 
-    // If Cloudinary and download requested, add fl_attachment flag
-    if (wantsDownload && pdfUrl.includes("res.cloudinary.com") && !pdfUrl.includes("fl_attachment")) {
-      const transformedUrl = pdfUrl.replace("/upload/", "/upload/fl_attachment/");
-      return NextResponse.redirect(transformedUrl, 307);
+    // Fetch upstream file (supports signed Cloudinary raw/image URLs and external hosts)
+    const upstreamRes = await fetch(downloadTargetUrl);
+
+    if (!upstreamRes.ok || !upstreamRes.body) {
+      // Fallback: redirect directly to the signed URL so the browser downloads/views directly
+      return NextResponse.redirect(downloadTargetUrl);
     }
 
-    return NextResponse.redirect(pdfUrl, 307);
+    const filename = safePdfFilename(targetPdf.title || course.title);
+    const encodedFilename = encodeURIComponent(filename);
+
+    return new Response(upstreamRes.body, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `${wantsDownload ? "attachment" : "inline"}; filename="${filename}"; filename*=UTF-8''${encodedFilename}`,
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
   } catch (err: any) {
     console.error("[Course PDF Access] Error:", err);
     return NextResponse.json(

@@ -39,6 +39,25 @@ function isImageFile(type?: string | null, url?: string | null): boolean {
   return /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url);
 }
 
+function getFilenameFromUrl(url: string): string {
+  try {
+    const pathname = new URL(url).pathname;
+    const lastPart = pathname.split("/").filter(Boolean).pop();
+    return decodeURIComponent(lastPart || "download");
+  } catch {
+    return "download";
+  }
+}
+
+function isDownloadableResource(url?: string | null): boolean {
+  if (!url) return false;
+  return /cloudinary\.com\/.+\/raw\/upload\//i.test(url) || /\.(pdf|docx?|xlsx?|pptx?|zip)(\?.*)?$/i.test(url);
+}
+
+function getCommunityDownloadUrl(url: string, name?: string | null): string {
+  return `/api/community/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name || getFilenameFromUrl(url))}`;
+}
+
 export function MessageBubble({
   message,
   isOwn,
@@ -51,6 +70,7 @@ export function MessageBubble({
   const initials = getInitials(name, email);
   const time = formatTime(message.created_at);
   const isImage = isImageFile(message.file_type, message.file_url);
+  const resourceIsDownload = isDownloadableResource(message.resource_link);
 
   return (
     <div className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : "flex-row"} items-end`}>
@@ -97,7 +117,7 @@ export function MessageBubble({
                 />
               </a>
               <a
-                href={`/api/community/download?url=${encodeURIComponent(message.file_url)}&name=${encodeURIComponent(message.file_name || "image.jpg")}`}
+                href={getCommunityDownloadUrl(message.file_url, message.file_name || "image.jpg")}
                 download={message.file_name || "image.jpg"}
                 className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/60 hover:bg-emerald-600 text-white shadow-md backdrop-blur-sm transition"
                 title="Download image"
@@ -122,7 +142,7 @@ export function MessageBubble({
                 </p>
               </div>
               <a
-                href={`/api/community/download?url=${encodeURIComponent(message.file_url)}&name=${encodeURIComponent(message.file_name || "download")}`}
+                href={getCommunityDownloadUrl(message.file_url, message.file_name || "download")}
                 download={message.file_name || "download"}
                 className="grid size-9 place-items-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 transition shrink-0 shadow-sm"
                 title="Download file"
@@ -140,7 +160,18 @@ export function MessageBubble({
           )}
 
           {/* External Resource Link */}
-          {message.resource_link && (
+          {message.resource_link && resourceIsDownload && (
+            <a
+              href={getCommunityDownloadUrl(message.resource_link)}
+              download={getFilenameFromUrl(message.resource_link)}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95"
+              title="Download file"
+            >
+              <Download size={12} /> Download {getFilenameFromUrl(message.resource_link)}
+            </a>
+          )}
+
+          {message.resource_link && !resourceIsDownload && (
             <a
               href={message.resource_link}
               target="_blank"

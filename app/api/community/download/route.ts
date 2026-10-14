@@ -22,19 +22,38 @@ function getCloudinary() {
 
 export const dynamic = "force-dynamic";
 
+function isAllowedDownloadUrl(fileUrl: string) {
+  try {
+    const url = new URL(fileUrl);
+    return (
+      url.protocol === "https:" &&
+      (url.hostname.endsWith("cloudinary.com") ||
+        url.hostname.endsWith("res.cloudinary.com") ||
+        url.hostname.endsWith("b-cdn.net"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const fileUrl = searchParams.get("url");
     const requestedName = searchParams.get("name") || "download";
+    const wantsView = searchParams.get("view") === "true";
 
     if (!fileUrl) {
       return NextResponse.json({ error: "Missing file URL" }, { status: 400 });
     }
 
+    if (!isAllowedDownloadUrl(fileUrl)) {
+      return NextResponse.json({ error: "Unsupported download URL" }, { status: 400 });
+    }
+
     let downloadUrl = fileUrl;
 
-    // If it's a Cloudinary raw upload, generate a signed download URL with attachment: true
+    // Handle Cloudinary raw files (e.g. PDFs, docs, zips) with signed URLs
     if (fileUrl.includes("cloudinary.com") && fileUrl.includes("/raw/upload/")) {
       try {
         const cld = getCloudinary();
@@ -44,12 +63,12 @@ export async function GET(req: NextRequest) {
           downloadUrl = cld.utils.private_download_url(publicId, "", {
             resource_type: "raw",
             type: "upload",
-            attachment: true,
+            attachment: !wantsView,
             expires_at: Math.floor(Date.now() / 1000) + 3600,
           });
         }
       } catch (err) {
-        console.error("[download] Error generating signed Cloudinary URL:", err);
+        console.error("[download] Error generating signed Cloudinary raw URL:", err);
       }
     } else if (fileUrl.includes("cloudinary.com") && fileUrl.includes("/image/upload/")) {
       // For images on Cloudinary, add fl_attachment transformation flag
@@ -62,7 +81,7 @@ export async function GET(req: NextRequest) {
           const cleanPublicId = publicId.replace(/\.[^/.]+$/, "");
           downloadUrl = cld.url(cleanPublicId, {
             resource_type: "image",
-            flags: "attachment",
+            flags: !wantsView ? "attachment" : undefined,
             secure: true,
           });
         }
@@ -79,14 +98,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(downloadUrl);
     }
 
-    const contentType = upstreamRes.headers.get("content-type") || "application/octet-stream";
+    let contentType = upstreamRes.headers.get("content-type") || "application/octet-stream";
+    if (requestedName.toLowerCase().endsWith(".pdf") || fileUrl.toLowerCase().includes(".pdf")) {
+      contentType = "application/pdf";
+    }
     const safeFilename = encodeURIComponent(requestedName).replace(/['()]/g, escape);
 
     return new Response(upstreamRes.body, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`,
+        "Content-Disposition": `${wantsView ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`,
         "Cache-Control": "private, max-age=3600",
       },
     });

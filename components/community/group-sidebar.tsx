@@ -252,7 +252,7 @@ export function GroupSidebar({ groups, isAdmin }: { groups: any[]; isAdmin?: boo
                         {group.name}
                       </div>
                       {group.last_message_at && (
-                        <span className="text-[10px] font-semibold text-gray-400 dark:text-cream/40 shrink-0">
+                        <span suppressHydrationWarning className="text-[10px] font-semibold text-gray-400 dark:text-cream/40 shrink-0">
                           {formatChatTime(group.last_message_at)}
                         </span>
                       )}

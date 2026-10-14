@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { validateUserCourseAccess } from "@/lib/access-check";
 import { rateLimit, getIP } from "@/lib/rate-limit";
 
@@ -51,12 +52,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: access.message }, { status });
     }
 
-    const supabase = await createClient();
+    const admin = createAdminClient();
 
     // 2. Fetch the course
-    const { data: course, error: courseError } = await supabase
+    const { data: course, error: courseError } = await admin
       .from("lms_courses")
-      .select("id, youtube_url, bunny_video_id, bunny_library_id")
+      .select("id, youtube_url")
       .eq("slug", courseSlug)
       .maybeSingle();
 
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Fetch module IDs for this course
-    const { data: modules } = await supabase
+    const { data: modules } = await admin
       .from("lms_modules")
       .select("id")
       .eq("course_id", course.id);
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
 
     if (moduleIds.length > 0) {
       // 4. Fetch the lesson
-      const { data: lesson } = await supabase
+      const { data: lesson } = await admin
         .from("lms_lessons")
         .select("id")
         .eq("slug", lessonSlug)
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
 
       if (lesson) {
         // 5. Fetch video details for lesson
-        const { data: videoData } = await supabase
+        const { data: videoData } = await admin
           .from("lms_videos")
           .select("youtube_video_id, bunny_video_id, bunny_library_id")
           .eq("lesson_id", lesson.id)
@@ -97,9 +98,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Check Bunny Stream on video or course level
-    const bunnyVideoId = video?.bunny_video_id || course.bunny_video_id;
-    const bunnyLibraryId = video?.bunny_library_id || course.bunny_library_id || process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID;
+    // Check Bunny Stream on video level
+    const bunnyVideoId = video?.bunny_video_id;
+    const bunnyLibraryId = video?.bunny_library_id || process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || "768113";
 
     if (bunnyVideoId) {
       return NextResponse.json({

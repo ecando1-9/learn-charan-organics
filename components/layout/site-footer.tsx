@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Facebook, Instagram, Mail, MessageCircle, Youtube, ShieldCheck, Heart } from "lucide-react";
+import { Facebook, Instagram, Mail, MessageCircle, Youtube, ShieldCheck, ExternalLink } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 
 export function SiteFooter() {
@@ -143,9 +143,14 @@ export function SiteFooter() {
           <p>
             © {new Date().getFullYear()} Charan Organics Academy. All rights reserved.
           </p>
-          <p className="flex items-center gap-1 text-[11px]">
-            Crafted with <Heart size={12} className="text-emerald-400 fill-emerald-400" /> for Organic Cosmetic Formulators
-          </p>
+          <a
+            href="https://ecantechesolutions.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-cream/70 transition hover:text-white"
+          >
+            Developed by Ecantech eSolutions <ExternalLink size={12} />
+          </a>
         </div>
       </div>
     </footer>
