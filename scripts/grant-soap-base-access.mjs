@@ -1,28 +1,33 @@
 import { createClient } from "@supabase/supabase-js";
+import crypto from "node:crypto";
 
 const TEST_EMAIL = "yuvapink52@gmail.com";
 const COURSE_SLUG = "soap-base-making";
 const DIRECT_PAYMENT_REF = "Direct Payment";
 
 const BULK_EMAILS = [
-  "Visitmraj@gmail.com",
-  "mail4madhavi@gmail.com",
-  "ameerunnisa093@gmail.com",
-  "Kavithanlg@gmail.com",
-  "Vanajachowdary26@gmail.com",
-  "dumpanagaaruna@gmail.com",
-  "Chavaprasad@gmail.com",
-  "jyothsnaetala@gmail.com",
-  "bhuvanasreeenterprises999@gmail.com",
-  "saggellanarishimha@gmail.com",
-  "sandhyarani.sudarsan@gmail.com",
-  "Palurivaralakshmi9@gmail.com",
-  "manasarayavarapu1@gmail.com",
-  "Anjanadevi.rachaputi6@gmail.com",
+  "reshmanajeer135@gmail.com",
+  "mandapakaswapna@gmail.com",
   "Krothapeta@gmail.com",
-  "glakshmidtc@gmail.com",
-  "vijayalakshmilollaa@gmail.com",
-  TEST_EMAIL,
+  "dumpanagaaruna@gmail.com",
+  "raju.poduru@gmail.com",
+  "relangivaralakshmi7799@gmail.com",
+  "viratsunainasingh@gmail.com",
+  "satishimmanni672@gmail.com",
+  "velchuril.shailaja@gmail.com",
+  "manasarayavarapu1@gmail.com",
+  "alluanushareddy12@gmail.com",
+  "Samhithareddy1990@gmail.com",
+  "ameerunnisa093@gmail.com",
+  "nagasree01@gmail.com",
+  "palurivaralakshmi9@gmail.com",
+  "vanajachowdary26@gmail.com",
+  "devakiswamy.234@gmail.com",
+  "sandhyarani.sudarsan@gmail.com",
+  "sridevi.golivi@gmail.com",
+  "lakshmi.jandhyala23@gmail.com",
+  "palacharlaseshu123@gmail.com",
+  "annapurnasms@gmail.com",
 ];
 
 function usage() {
@@ -54,10 +59,16 @@ function fullNameFromEmail(email) {
     .replace(/\b\w/g, (ch) => ch.toUpperCase()) || "Student";
 }
 
-function generatePassword(email) {
-  const local = (email.split("@")[0] || "student").replace(/[^a-z0-9]/gi, "");
-  const seed = local.slice(0, 6) || "student";
-  return `Charan@${seed}2026`;
+function generatePassword() {
+  // Generate unpredictable, strong yet simple and distinct password
+  // Avoid confusing characters (0, O, o, 1, l, I)
+  const chars = "23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ";
+  const bytes = crypto.randomBytes(6);
+  let randomPart = "";
+  for (let i = 0; i < 6; i++) {
+    randomPart += chars[bytes[i] % chars.length];
+  }
+  return `Charan@${randomPart}#`;
 }
 
 function parseVariants(rawVariants, basePrice) {
@@ -262,48 +273,88 @@ async function sendAccessEmail({ email, password, course, variant, requestId }) 
   return body;
 }
 
-async function getUserByEmail(admin, email) {
-  const perPage = 1000;
-  for (let page = 1; page <= 10; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-    if (error) throw error;
-    const found = data.users.find((user) => user.email?.toLowerCase() === email);
-    if (found) return found;
-    if (data.users.length < perPage) return null;
+async function buildUserCache(admin) {
+  const map = new Map();
+  try {
+    const { data: profiles } = await admin.from("lms_profiles").select("id, email");
+    if (profiles) {
+      for (const p of profiles) {
+        if (p.email) map.set(p.email.toLowerCase().trim(), p.id);
+      }
+    }
+  } catch (err) {
+    console.warn("Could not pre-populate user cache from profiles:", err?.message);
   }
-  return null;
+  return map;
 }
 
-async function upsertUser(admin, email, password) {
-  const existing = await getUserByEmail(admin, email);
+async function upsertUser(admin, email, password, userCache) {
   const fullName = fullNameFromEmail(email);
+  const normalized = email.toLowerCase().trim();
 
-  if (existing) {
-    const { data, error } = await admin.auth.admin.updateUserById(existing.id, {
+  let existingId = userCache.get(normalized);
+
+  if (!existingId) {
+    const { data: profile } = await admin
+      .from("lms_profiles")
+      .select("id")
+      .ilike("email", normalized)
+      .maybeSingle();
+
+    if (profile?.id) {
+      existingId = profile.id;
+      userCache.set(normalized, existingId);
+    }
+  }
+
+  if (existingId) {
+    const { data, error } = await admin.auth.admin.updateUserById(existingId, {
       password,
       email_confirm: true,
-      user_metadata: {
-        ...(existing.user_metadata || {}),
-        full_name: existing.user_metadata?.full_name || fullName,
-      },
+      user_metadata: { full_name: fullName },
     });
     if (error) throw error;
     return { user: data.user, created: false };
   }
 
+  // Attempt to create new user in Supabase Auth
   const { data, error } = await admin.auth.admin.createUser({
-    email,
+    email: normalized,
     password,
     email_confirm: true,
     user_metadata: { full_name: fullName },
   });
-  if (error) throw error;
-  return { user: data.user, created: true };
+
+  if (!error && data?.user) {
+    userCache.set(normalized, data.user.id);
+    return { user: data.user, created: true };
+  }
+
+  // If already registered in Auth but not yet in lms_profiles
+  if (error && (error.message?.includes("already") || error.status === 422)) {
+    for (let page = 1; page <= 5; page++) {
+      const { data: listData } = await admin.auth.admin.listUsers({ page, perPage: 100 });
+      const found = listData?.users?.find((u) => u.email?.toLowerCase() === normalized);
+      if (found) {
+        userCache.set(normalized, found.id);
+        const { data: updated, error: updateErr } = await admin.auth.admin.updateUserById(found.id, {
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: fullName },
+        });
+        if (updateErr) throw updateErr;
+        return { user: updated.user, created: false };
+      }
+      if (!listData?.users || listData.users.length < 100) break;
+    }
+  }
+
+  throw error || new Error(`Failed to upsert user for ${email}`);
 }
 
-async function grantAccess(admin, email) {
-  const password = generatePassword(email);
-  const { user, created } = await upsertUser(admin, email, password);
+async function grantAccess(admin, email, userCache) {
+  const password = generatePassword();
+  const { user, created } = await upsertUser(admin, email, password, userCache);
   const fullName = fullNameFromEmail(email);
 
   const { error: profileError } = await admin.from("lms_profiles").upsert({
@@ -360,8 +411,8 @@ async function grantAccess(admin, email) {
         reviewed_at: new Date().toISOString(),
         admin_note: `${variant.name} granted by bulk admin script.`,
       })
-    .select("id")
-    .single();
+      .select("id")
+      .single();
     if (requestError) throw requestError;
     request = insertedRequest;
   }
@@ -392,6 +443,7 @@ async function grantAccess(admin, email) {
   return {
     email,
     password,
+    fullName,
     userId: user.id,
     created,
     course: course.title,
@@ -410,7 +462,7 @@ async function main() {
   const runAll = args.includes("--all");
   const confirmed = args.includes("--confirm");
 
-  if ((!runTest && !runAll) || (runTest && runAll) || (runAll && !confirmed)) {
+  if ((!runTest && !runAll) || (runAll && !confirmed)) {
     usage();
     process.exit(runAll && !confirmed ? 1 : 0);
   }
@@ -423,20 +475,34 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  console.log("Pre-populating user cache from database...");
+  const userCache = await buildUserCache(admin);
+  console.log(`Cached ${userCache.size} existing profiles.`);
+
   const emails = (runTest ? [TEST_EMAIL] : BULK_EMAILS).map(normalizeEmail);
   const results = [];
 
-  for (const email of emails) {
+  console.log(`Starting processing for ${emails.length} student(s)...`);
+
+  for (let i = 0; i < emails.length; i++) {
+    const email = emails[i];
     try {
-      results.push(await grantAccess(admin, email));
-      console.log(`OK ${email}`);
+      const res = await grantAccess(admin, email, userCache);
+      results.push(res);
+      console.log(`[${i + 1}/${emails.length}] OK: ${email} | Password: ${res.password} | Created: ${res.created} | Email: ${res.emailSent ? "SENT" : res.emailSkipped}`);
     } catch (error) {
       results.push({ email, error: error?.message || String(error) });
-      console.error(`ERROR ${email}: ${error?.message || error}`);
+      console.error(`[${i + 1}/${emails.length}] ERROR: ${email} - ${error?.message || error}`);
       if (runTest) process.exitCode = 1;
+    }
+
+    // Rate limit throttle for Resend API
+    if (i < emails.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 850));
     }
   }
 
+  console.log("\n=== COMPLETED ALL STUDENTS ===");
   console.log(JSON.stringify(results, null, 2));
 }
 
