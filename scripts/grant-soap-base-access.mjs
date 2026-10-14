@@ -6,28 +6,39 @@ const COURSE_SLUG = "soap-base-making";
 const DIRECT_PAYMENT_REF = "Direct Payment";
 
 const BULK_EMAILS = [
-  "reshmanajeer135@gmail.com",
-  "mandapakaswapna@gmail.com",
-  "Krothapeta@gmail.com",
-  "dumpanagaaruna@gmail.com",
-  "raju.poduru@gmail.com",
-  "relangivaralakshmi7799@gmail.com",
-  "viratsunainasingh@gmail.com",
-  "satishimmanni672@gmail.com",
-  "velchuril.shailaja@gmail.com",
-  "manasarayavarapu1@gmail.com",
-  "alluanushareddy12@gmail.com",
-  "Samhithareddy1990@gmail.com",
-  "ameerunnisa093@gmail.com",
-  "nagasree01@gmail.com",
-  "palurivaralakshmi9@gmail.com",
-  "vanajachowdary26@gmail.com",
-  "devakiswamy.234@gmail.com",
-  "sandhyarani.sudarsan@gmail.com",
-  "sridevi.golivi@gmail.com",
-  "lakshmi.jandhyala23@gmail.com",
-  "palacharlaseshu123@gmail.com",
-  "annapurnasms@gmail.com",
+  "saii.meegada@gmail.com",
+  "malladi19@gmail.com",
+  "sn9701026582@gmail.com",
+  "saggellanarishimha@gmail.com",
+  "chandralekhat.751@gmail.com",
+  "thippavijaya82@gmail.com",
+  "Jagadish.elipilla@gmail.com",
+  "Amarnath.majji@gmail.com",
+  "swetha.k9116@gmail.com",
+  "mail4madhavi@gmail.com",
+  "priscilaw2011@gmail.com",
+  "mkarunasrihdfc@gmail.com",
+  "swamylatha86708@gmail.com",
+  "sujathadatti1996@gmail.com",
+  "Anjanadevi.rachaputi6@gmail.com",
+  "vijayalakshmilollaa@gmail.com",
+  "ambikadevi1431@gmail.com",
+  "glakshmidtc@gmail.com",
+  "ramsuni.setty@gmail.com",
+  "Chavaprasad@gmail.com",
+  "himavarshinikolluru@gmail.com",
+  "chavarama82@gmail.com",
+  "smileykalyan@gmail.com",
+  "ramanachanti123@gmail.com",
+  "Madhavikola34@gmail.com",
+  "sravanigurukamal@gmail.com",
+  "venkatalakshmimugada5@gmail.com",
+  "jyothi.nj20@gmail.com",
+  "sharwaniyadav4@gmail.com",
+  "bhuvanasreeenterprises999@gmail.com",
+  "shaikdevi835@gmail.com",
+  "hariharitha76@gmail.com",
+  "Bhargavi.dr@gmail.com",
 ];
 
 function usage() {
@@ -42,7 +53,7 @@ Options:
   --confirm    Required with --all to avoid accidental bulk changes.
   --no-email   Do not send access email.
   --force-email
-              Send email even when an existing test request is reused.
+              Send email even when an existing request is reused.
 `);
 }
 
@@ -116,7 +127,7 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-async function sendAccessEmail({ email, password, course, variant, requestId }) {
+async function sendAccessEmail({ email, password, course, variant, requestId, isExistingUser }) {
   if (process.argv.includes("--no-email")) {
     return { skipped: true, reason: "--no-email" };
   }
@@ -193,7 +204,7 @@ async function sendAccessEmail({ email, password, course, variant, requestId }) 
               </div>
 
               <h2 style="margin:0 0 10px;color:#0b291b;font-size:21px;font-weight:900;">Dear ${escapeHtml(studentName)},</h2>
-              <p style="margin:0 0 22px;color:#4b5563;font-size:14px;line-height:1.7;">Welcome to Charan Organics Academy. Your enrollment for <strong>${escapeHtml(course.title)}</strong> has been approved under the <strong>${escapeHtml(variant.name)}</strong> plan. Please use the login details below to access your video class, formulation notes, and student dashboard.</p>
+              <p style="margin:0 0 22px;color:#4b5563;font-size:14px;line-height:1.7;">Welcome to Charan Organics Academy. Your enrollment for <strong>${escapeHtml(course.title)}</strong> has been approved under the <strong>${escapeHtml(variant.name)}</strong> plan. Please use your credentials below to access your video class, formulation notes, and student dashboard.</p>
 
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8faf7;border:1px solid #dbe7df;border-radius:16px;margin-bottom:22px;">
                 <tr>
@@ -210,7 +221,9 @@ async function sendAccessEmail({ email, password, course, variant, requestId }) 
                       </tr>
                       <tr>
                         <td style="font-size:12px;color:#6b7280;padding-bottom:6px;">Password</td>
-                        <td align="right" style="font-size:14px;color:#0b291b;font-weight:900;font-family:monospace;padding-bottom:6px;">${escapeHtml(password)}</td>
+                        <td align="right" style="font-size:14px;color:#0b291b;font-weight:${isExistingUser ? '700' : '900'};font-family:${isExistingUser ? 'inherit' : 'monospace'};padding-bottom:6px;">
+                          ${isExistingUser ? '<span style="color:#166534;font-style:italic;">Use your existing account password</span>' : escapeHtml(password)}
+                        </td>
                       </tr>
                       <tr>
                         <td style="font-size:12px;color:#6b7280;">Access Plan</td>
@@ -276,10 +289,10 @@ async function sendAccessEmail({ email, password, course, variant, requestId }) 
 async function buildUserCache(admin) {
   const map = new Map();
   try {
-    const { data: profiles } = await admin.from("lms_profiles").select("id, email");
+    const { data: profiles } = await admin.from("lms_profiles").select("id, email, full_name");
     if (profiles) {
       for (const p of profiles) {
-        if (p.email) map.set(p.email.toLowerCase().trim(), p.id);
+        if (p.email) map.set(p.email.toLowerCase().trim(), p);
       }
     }
   } catch (err) {
@@ -288,117 +301,116 @@ async function buildUserCache(admin) {
   return map;
 }
 
-async function upsertUser(admin, email, password, userCache) {
-  const fullName = fullNameFromEmail(email);
+async function grantAccess(admin, email, userCache, course) {
   const normalized = email.toLowerCase().trim();
+  const fullName = fullNameFromEmail(email);
 
-  let existingId = userCache.get(normalized);
-
-  if (!existingId) {
+  // 1. Check if user already exists
+  let existingProfile = userCache.get(normalized);
+  if (!existingProfile) {
     const { data: profile } = await admin
       .from("lms_profiles")
-      .select("id")
+      .select("id, email, full_name")
       .ilike("email", normalized)
       .maybeSingle();
 
     if (profile?.id) {
-      existingId = profile.id;
-      userCache.set(normalized, existingId);
+      existingProfile = profile;
+      userCache.set(normalized, profile);
     }
   }
 
-  if (existingId) {
-    const { data, error } = await admin.auth.admin.updateUserById(existingId, {
-      password,
+  let userId = existingProfile?.id;
+  let isExistingUser = Boolean(userId);
+  let generatedPassword = null;
+
+  // 2. If user already exists, verify whether they are already actively enrolled
+  if (userId) {
+    const { data: activeEnrollment } = await admin
+      .from("lms_enrollments")
+      .select("id, status")
+      .eq("user_id", userId)
+      .eq("course_id", course.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (activeEnrollment && !process.argv.includes("--force-email")) {
+      return {
+        email,
+        status: "ALREADY_ACTIVE",
+        message: "User already has an active account and active course enrollment. Skipped duplicate processing.",
+        userId,
+        isExistingUser: true,
+        emailSent: false,
+        emailSkipped: "already active",
+      };
+    }
+  }
+
+  // 3. If brand new user: create account with new secure password
+  if (!userId) {
+    generatedPassword = generatePassword();
+    const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
+      email: normalized,
+      password: generatedPassword,
       email_confirm: true,
       user_metadata: { full_name: fullName },
     });
-    if (error) throw error;
-    return { user: data.user, created: false };
-  }
 
-  // Attempt to create new user in Supabase Auth
-  const { data, error } = await admin.auth.admin.createUser({
-    email: normalized,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: fullName },
-  });
-
-  if (!error && data?.user) {
-    userCache.set(normalized, data.user.id);
-    return { user: data.user, created: true };
-  }
-
-  // If already registered in Auth but not yet in lms_profiles
-  if (error && (error.message?.includes("already") || error.status === 422)) {
-    for (let page = 1; page <= 5; page++) {
-      const { data: listData } = await admin.auth.admin.listUsers({ page, perPage: 100 });
-      const found = listData?.users?.find((u) => u.email?.toLowerCase() === normalized);
-      if (found) {
-        userCache.set(normalized, found.id);
-        const { data: updated, error: updateErr } = await admin.auth.admin.updateUserById(found.id, {
-          password,
-          email_confirm: true,
-          user_metadata: { full_name: fullName },
-        });
-        if (updateErr) throw updateErr;
-        return { user: updated.user, created: false };
+    if (createError && (createError.message?.includes("already") || createError.status === 422)) {
+      // User existed in auth but not in profiles
+      isExistingUser = true;
+      for (let page = 1; page <= 5; page++) {
+        const { data: listData } = await admin.auth.admin.listUsers({ page, perPage: 100 });
+        const found = listData?.users?.find((u) => u.email?.toLowerCase() === normalized);
+        if (found) {
+          userId = found.id;
+          break;
+        }
+        if (!listData?.users || listData.users.length < 100) break;
       }
-      if (!listData?.users || listData.users.length < 100) break;
+    } else if (createError) {
+      throw createError;
+    } else {
+      userId = createdUser.user.id;
     }
   }
 
-  throw error || new Error(`Failed to upsert user for ${email}`);
-}
+  if (!userId) {
+    throw new Error(`Unable to resolve or create user for ${email}`);
+  }
 
-async function grantAccess(admin, email, userCache) {
-  const password = generatePassword();
-  const { user, created } = await upsertUser(admin, email, password, userCache);
-  const fullName = fullNameFromEmail(email);
-
+  // 4. Ensure profile exists in lms_profiles
   const { error: profileError } = await admin.from("lms_profiles").upsert({
-    id: user.id,
-    full_name: user.user_metadata?.full_name || fullName,
-    email,
+    id: userId,
+    full_name: existingProfile?.full_name || fullName,
+    email: normalized,
     role: "student",
     suspended: false,
   });
   if (profileError) throw profileError;
 
-  const { data: course, error: courseError } = await admin
-    .from("lms_courses")
-    .select("id, title, slug, price_inr, thumbnail_url, duration_variants, published")
-    .eq("slug", COURSE_SLUG)
-    .single();
-  if (courseError) throw courseError;
-  if (!course?.published) {
-    throw new Error(`Course ${COURSE_SLUG} exists but is not published.`);
-  }
-
   const variant = selectSixMonthVariant(course);
   const amount = Number(variant.price) || Number(course.price_inr) || 0;
   const courseTitle = `${course.title} - ${variant.name}`;
 
-  const { data: existingRequest, error: existingRequestError } = await admin
+  // 5. Ensure approved enrollment request exists
+  const { data: existingRequest } = await admin
     .from("lms_enrollment_requests")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("course_id", course.id)
     .eq("status", "approved")
-    .or(`utr_number.eq.${DIRECT_PAYMENT_REF},payment_reference.eq.${DIRECT_PAYMENT_REF}`)
     .order("requested_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (existingRequestError) throw existingRequestError;
 
   let request = existingRequest;
-  const requestReused = Boolean(existingRequest);
   if (!request) {
     const { data: insertedRequest, error: requestError } = await admin
       .from("lms_enrollment_requests")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         course_id: course.id,
         course_title: courseTitle,
         course_ids: [course.id],
@@ -409,7 +421,9 @@ async function grantAccess(admin, email, userCache) {
         selected_all: false,
         status: "approved",
         reviewed_at: new Date().toISOString(),
-        admin_note: `${variant.name} granted by bulk admin script.`,
+        admin_note: isExistingUser
+          ? `${variant.name} granted to existing account.`
+          : `${variant.name} granted with new account.`,
       })
       .select("id")
       .single();
@@ -417,9 +431,10 @@ async function grantAccess(admin, email, userCache) {
     request = insertedRequest;
   }
 
+  // 6. Upsert active enrollment in lms_enrollments
   const { error: enrollError } = await admin.from("lms_enrollments").upsert(
     {
-      user_id: user.id,
+      user_id: userId,
       course_id: course.id,
       status: "active",
       amount_paid_inr: amount,
@@ -429,28 +444,27 @@ async function grantAccess(admin, email, userCache) {
   );
   if (enrollError) throw enrollError;
 
-  const emailResult =
-    email === TEST_EMAIL && requestReused && !process.argv.includes("--force-email")
-      ? { skipped: true, reason: "test email already processed" }
-      : await sendAccessEmail({
-          email,
-          password,
-          course,
-          variant,
-          requestId: request.id,
-        });
+  // 7. Send access confirmation email
+  const emailResult = await sendAccessEmail({
+    email: normalized,
+    password: generatedPassword,
+    course,
+    variant,
+    requestId: request.id,
+    isExistingUser,
+  });
 
   return {
-    email,
-    password,
-    fullName,
-    userId: user.id,
-    created,
+    email: normalized,
+    status: isExistingUser ? "ACCESS_GRANTED_EXISTING_USER" : "NEW_ACCOUNT_CREATED_AND_ENROLLED",
+    fullName: existingProfile?.full_name || fullName,
+    userId,
+    isExistingUser,
+    password: generatedPassword || "(Existing password preserved)",
     course: course.title,
     plan: variant.name,
     amount,
     requestId: request.id,
-    requestReused,
     emailSent: Boolean(emailResult?.id),
     emailSkipped: emailResult?.skipped ? emailResult.reason : null,
   };
@@ -475,6 +489,13 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  const { data: course, error: courseError } = await admin
+    .from("lms_courses")
+    .select("id, title, slug, price_inr, thumbnail_url, duration_variants, published")
+    .eq("slug", COURSE_SLUG)
+    .single();
+  if (courseError) throw courseError;
+
   console.log("Pre-populating user cache from database...");
   const userCache = await buildUserCache(admin);
   console.log(`Cached ${userCache.size} existing profiles.`);
@@ -487,16 +508,20 @@ async function main() {
   for (let i = 0; i < emails.length; i++) {
     const email = emails[i];
     try {
-      const res = await grantAccess(admin, email, userCache);
+      const res = await grantAccess(admin, email, userCache, course);
       results.push(res);
-      console.log(`[${i + 1}/${emails.length}] OK: ${email} | Password: ${res.password} | Created: ${res.created} | Email: ${res.emailSent ? "SENT" : res.emailSkipped}`);
+      console.log(
+        `[${i + 1}/${emails.length}] ${res.status}: ${email} | Existing: ${res.isExistingUser} | Email: ${
+          res.emailSent ? "SENT" : res.emailSkipped
+        }`
+      );
     } catch (error) {
       results.push({ email, error: error?.message || String(error) });
       console.error(`[${i + 1}/${emails.length}] ERROR: ${email} - ${error?.message || error}`);
       if (runTest) process.exitCode = 1;
     }
 
-    // Rate limit throttle for Resend API
+    // Rate limit throttle for Resend API if email was sent
     if (i < emails.length - 1) {
       await new Promise((resolve) => setTimeout(resolve, 850));
     }
