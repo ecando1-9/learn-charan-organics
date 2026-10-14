@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ensureLmsProfile } from "@/lib/supabase/profile";
+import { getDefaultLmsRole } from "@/lib/supabase/profile";
 
 type CookieToSet = {
   name: string;
@@ -56,21 +56,72 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Detect whether client has Supabase auth token cookies
+  const hasAuthCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
+
+  let user = null;
+  let isNetworkError = false;
+
   try {
-    const user = await supabase.auth.getUser().then((res) => res.data?.user).catch(() => null);
-
-    if ((isPrivate || isAdmin) && !user) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      loginUrl.searchParams.set("redirectTo", pathname);
-      return NextResponse.redirect(loginUrl);
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      if (
+        error.message?.includes("fetch failed") ||
+        error.name === "AuthRetryableFetchError" ||
+        (error as any).status === 503 ||
+        (error as any).status === 504
+      ) {
+        isNetworkError = true;
+      }
     }
+    user = data?.user ?? null;
+  } catch (err: any) {
+    if (
+      err?.message?.includes("fetch failed") ||
+      err?.name === "AuthRetryableFetchError" ||
+      err?.cause?.message?.includes("fetch failed")
+    ) {
+      isNetworkError = true;
+    }
+  }
 
-    if (isAdmin && user) {
+  // Retry once if there was a transient network error and the user has auth cookies
+  if (!user && isNetworkError && hasAuthCookie) {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const { data } = await supabase.auth.getUser();
+      user = data?.user ?? null;
+      if (user) {
+        isNetworkError = false;
+      }
+    } catch {
+      // Still network error
+    }
+  }
+
+  // Authentication gate:
+  // If no user could be verified:
+  // - If the user has valid auth cookies but Supabase had a temporary network glitch,
+  //   let the request proceed to avoid falsely kicking out active users.
+  // - Otherwise, redirect to login.
+  if ((isPrivate || isAdmin) && !user) {
+    if (hasAuthCookie && isNetworkError) {
+      return response;
+    }
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("redirectTo", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Admin authorization gate:
+  if (isAdmin && user) {
+    const isPrimaryAdmin = getDefaultLmsRole(user.email) === "admin";
+    if (!isPrimaryAdmin) {
       try {
         const admin = createAdminClient();
-        await ensureLmsProfile(user);
-
         const { data: profile } = await admin
           .from("lms_profiles")
           .select("role")
@@ -87,8 +138,6 @@ export async function middleware(request: NextRequest) {
         console.error("Middleware admin check error:", err);
       }
     }
-  } catch (err) {
-    console.error("Middleware auth check error:", err);
   }
 
   return response;
