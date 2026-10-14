@@ -340,7 +340,7 @@ type EditableCourse = {
 };
 
 export function EditCourseModal({ course, onDone }: { course: EditableCourse; onDone: () => void }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [title, setTitle] = useState(course.title);
   const [youtubeUrl, setYoutubeUrl] = useState(course.youtubeUrl);
   const [bunnyVideoId, setBunnyVideoId] = useState(course.bunnyVideoId ?? "");
@@ -362,27 +362,30 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Sync state whenever course prop or open changes
+  // Sync state whenever course prop changes
   useEffect(() => {
-    if (open) {
-      setTitle(course.title);
-      setYoutubeUrl(course.youtubeUrl);
-      setBunnyVideoId(course.bunnyVideoId ?? "");
-      setPdfUrl(course.pdfUrl);
-      setPdfMaterials(parseInitialPdfs(course.pdfResources, course.pdfUrl, course.title));
-      setIsFree(course.price === 0);
-      setPrice(String(course.price));
-      setPrice1Year(course.price1Year ? String(course.price1Year) : "");
-      setVariants(parseInitialVariants(course.durationVariants, course.price, course.price1Year));
-      setPublished(course.published ?? true);
-      setThumbnailUrl(course.thumbnailUrl);
-      setDescription(course.description ?? "");
-      setSortOrder(String(course.sortOrder ?? 1));
-      setMessage(null);
-    }
-  }, [open, course]);
+    setTitle(course.title);
+    setYoutubeUrl(course.youtubeUrl);
+    setBunnyVideoId(course.bunnyVideoId ?? "");
+    setPdfUrl(course.pdfUrl);
+    setPdfMaterials(parseInitialPdfs(course.pdfResources, course.pdfUrl, course.title));
+    setIsFree(course.price === 0);
+    setPrice(String(course.price));
+    setPrice1Year(course.price1Year ? String(course.price1Year) : "");
+    setVariants(parseInitialVariants(course.durationVariants, course.price, course.price1Year));
+    setPublished(course.published ?? true);
+    setThumbnailUrl(course.thumbnailUrl);
+    setDescription(course.description ?? "");
+    setSortOrder(String(course.sortOrder ?? 1));
+    setMessage(null);
+    setOpen(true);
+  }, [course]);
 
-  function close() { setOpen(false); setMessage(null); }
+  function close() {
+    setOpen(false);
+    setMessage(null);
+    onDone?.();
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -568,50 +571,40 @@ export function EditCourseModal({ course, onDone }: { course: EditableCourse; on
     window.location.reload();
   }
 
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        title="Edit course"
-        className="inline-flex items-center gap-1.5 rounded-xl bg-forest/8 dark:bg-white/10 px-3 py-1.5 text-xs font-bold text-forest dark:text-cream hover:bg-forest/15 dark:hover:bg-white/20 transition"
-      >
-        <Pencil size={13} /> Edit
-      </button>
+  if (!open) return null;
 
-      {open && (
-        <CourseModal
-          title="Edit Course"
-          subtitle="Update the course details below. Changes apply immediately."
-          fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, pdfMaterials, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
-          setters={{
-            setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl, setPdfMaterials,
-            setIsFree: (val: boolean) => {
-              setIsFree(val);
-              if (val) { setPrice("0"); setPrice1Year(""); }
-              else if (price === "0") setPrice("199");
-            },
-            setPrice, setPrice1Year, setVariants,
-            setPublished, setThumbnailUrl, setDescription, setSortOrder
-          }}
-          loading={loading}
-          message={message}
-          submitLabel="Save Changes"
-          onClose={close}
-          onSubmit={handleSubmit}
-          extraFooter={
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleting}
-              className="inline-flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-800 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-50"
-            >
-              {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-              Delete course
-            </button>
-          }
-        />
-      )}
-    </>
+  return (
+    <CourseModal
+      title="Edit Course"
+      subtitle="Update the course details below. Changes apply immediately."
+      fields={{ title, youtubeUrl, bunnyVideoId, pdfUrl, pdfMaterials, isFree, price, price1Year, variants, published, thumbnailUrl, description, sortOrder }}
+      setters={{
+        setTitle, setYoutubeUrl, setBunnyVideoId, setPdfUrl, setPdfMaterials,
+        setIsFree: (val: boolean) => {
+          setIsFree(val);
+          if (val) { setPrice("0"); setPrice1Year(""); }
+          else if (price === "0") setPrice("199");
+        },
+        setPrice, setPrice1Year, setVariants,
+        setPublished, setThumbnailUrl, setDescription, setSortOrder
+      }}
+      loading={loading}
+      message={message}
+      submitLabel="Save Changes"
+      onClose={close}
+      onSubmit={handleSubmit}
+      extraFooter={
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="inline-flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-800 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-50"
+        >
+          {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+          Delete course
+        </button>
+      }
+    />
   );
 }
 

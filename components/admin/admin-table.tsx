@@ -339,11 +339,12 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => {
                             setOpenMenuId(null);
                             setEditingCourse(course);
                           }}
-                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-bold transition hover:bg-forest/5 dark:hover:bg-white/10 text-forest dark:text-cream"
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-bold transition hover:bg-forest/5 dark:hover:bg-white/10 text-forest dark:text-cream cursor-pointer"
                         >
                           <Pencil size={14} className="text-leaf" />
                           <span>Edit Details</span>
@@ -465,8 +466,10 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => setEditingCourse(course)}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-forest/8 dark:bg-white/10 px-3 py-2 text-xs font-bold text-forest dark:text-cream hover:bg-forest/15 dark:hover:bg-white/20 transition"
+                      title="Edit course"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-forest/8 dark:bg-white/10 px-3 py-2 text-xs font-bold text-forest dark:text-cream hover:bg-forest/15 dark:hover:bg-white/20 transition cursor-pointer active:scale-95"
                     >
                       <Pencil size={13} /> Edit
                     </button>

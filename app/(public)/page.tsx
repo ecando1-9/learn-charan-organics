@@ -159,8 +159,8 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* 3. Interactive Course Tabs: My Courses (if enrolled) | Recently Added | Featured | Trending */}
-      <HomeCourseTabs courses={coursesWithStatus} myCourses={myCourses} />
+      {/* 3. Interactive Course Tabs: Recently Added | Featured | Trending */}
+      <HomeCourseTabs courses={coursesWithStatus} />
 
       {/* 4. Free Classes Strip */}
       <div id="free-classes">
