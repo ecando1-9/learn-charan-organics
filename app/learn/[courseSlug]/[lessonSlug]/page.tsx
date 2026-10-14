@@ -72,5 +72,30 @@ export default async function LearnPage({ params }: { params: Promise<{ courseSl
     );
   }
 
-  return <VideoPlayer course={course} lesson={lesson} />;
+  let isEnrolled = false;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user && course.id) {
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from("lms_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.role === "admin") {
+      isEnrolled = true;
+    } else {
+      const { data: enrollment } = await admin
+        .from("lms_enrollments")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("course_id", course.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      isEnrolled = !!enrollment;
+    }
+  }
+
+  return <VideoPlayer course={course} lesson={lesson} isEnrolled={isEnrolled} />;
 }

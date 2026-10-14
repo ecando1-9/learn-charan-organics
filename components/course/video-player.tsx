@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, FileText, List, MessageCircle, PlayCircle, Lock, X, Loader2, Download, ExternalLink } from "lucide-react";
+import { CheckCircle2, List, MessageCircle, PlayCircle, Lock, X, Loader2, Download } from "lucide-react";
 import type { Course, Lesson } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -9,21 +9,25 @@ import { BunnyPlayer } from "@/components/course/bunny-player";
 import { AntiTheft } from "@/components/course/anti-theft";
 import { toggleLessonCompletion } from "@/app/actions/progress";
 
-export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson }) {
+export function VideoPlayer({
+  course,
+  lesson,
+  isEnrolled = false,
+}: {
+  course: Course;
+  lesson: Lesson;
+  isEnrolled?: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [watermark, setWatermark] = useState({ x: 18, y: 18 });
   const [student, setStudent] = useState({ name: "Student", email: "student" });
   const [showPlaylist, setShowPlaylist] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
-  const [selectedPdfIndex, setSelectedPdfIndex] = useState(0);
-  const [pdfLoading, setPdfLoading] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
   const [togglingCompletion, setTogglingCompletion] = useState(false);
 
   const pdfResources = (course.pdfResources && course.pdfResources.length > 0)
     ? course.pdfResources
     : (course.pdfUrl ? [{ id: "pdf_1", title: `${course.title} Notes`, url: course.pdfUrl }] : []);
-  const activePdf = pdfResources[selectedPdfIndex] || pdfResources[0];
 
   const [videoSource, setVideoSource] = useState<{
     type: "cloudinary" | "youtube" | "bunny";
@@ -75,11 +79,6 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
     setTogglingCompletion(false);
   }
 
-  function openNotes() {
-    videoRef.current?.pause();
-    setPdfLoading(true);
-    setShowNotes(true);
-  }
 
   useEffect(() => {
     let active = true;
@@ -210,12 +209,6 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
               <div className="text-clay text-3xl mb-2">⚠️</div>
               <p className="text-sm font-bold text-red-400">{videoError}</p>
             </div>
-          ) : showNotes ? (
-            <div className="text-center space-y-3 p-6">
-              <FileText className="mx-auto text-leaf" size={34} />
-              <p className="text-sm font-black text-cream">PDF viewer is open</p>
-              <p className="text-xs font-semibold text-cream/60">Video is paused while you view formulation notes.</p>
-            </div>
           ) : videoSource?.type === "cloudinary" ? (
             <video
               ref={videoRef}
@@ -287,26 +280,29 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
               {isCompleted ? "Completed ✅" : "Mark complete"}
             </Button>
             {pdfResources.length > 0 && (
-              <>
-                <Button
-                  onClick={openNotes}
-                  variant="secondary"
-                  className="w-full sm:w-auto py-2.5 sm:py-2 border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60 hover:text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition"
-                >
-                  <FileText size={16} className="text-leaf" />
-                  {pdfResources.length > 1
-                    ? `View Notes & Formulas (${pdfResources.length})`
-                    : "View Notes & Formulas"}
-                </Button>
-                <a
-                  href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}&download=true`}
-                  download={activePdf.title ? `${activePdf.title}.pdf` : `${course.title}-notes.pdf`}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-full bg-emerald-600 hover:bg-emerald-700 border border-emerald-500/40 px-4 py-2.5 sm:py-2 text-xs sm:text-sm font-bold text-white transition shadow-sm active:scale-95"
-                  title="Download formulation PDF handbook"
-                >
-                  <Download size={15} /> Download PDF
-                </a>
-              </>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                {isEnrolled ? (
+                  pdfResources.map((pdf, idx) => (
+                    <a
+                      key={pdf.id || idx}
+                      href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(pdf.id)}&download=true`}
+                      download={pdf.title ? `${pdf.title}.pdf` : `${course.title}-formulation-${idx + 1}.pdf`}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-full bg-emerald-600 hover:bg-emerald-700 border border-emerald-500/40 px-4 py-2.5 sm:py-2 text-xs sm:text-sm font-bold text-white transition shadow-sm active:scale-95"
+                      title={`Download ${pdf.title || "Formulation PDF"}`}
+                    >
+                      <Download size={15} /> Download {pdfResources.length > 1 ? (pdf.title || `PDF #${idx + 1}`) : "Formulation PDF"}
+                    </a>
+                  ))
+                ) : (
+                  <a
+                    href={`/enroll?course=${course.slug}`}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-4 py-2.5 sm:py-2 text-xs sm:text-sm font-bold text-amber-300 transition shadow-sm"
+                    title="Enroll in this course to download formulation PDF"
+                  >
+                    <Lock size={14} className="text-amber-400" /> Unlock Formulation PDF with Enrollment
+                  </a>
+                )}
+              </div>
             )}
           </div>
 
@@ -350,116 +346,6 @@ export function VideoPlayer({ course, lesson }: { course: Course; lesson: Lesson
         </div>
       )}
 
-      {/* Secure PDF Modal (Mobile-Optimized & Seamless Viewer) */}
-      {showNotes && activePdf && (
-        <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col backdrop-blur-2xl">
-          <div className="flex flex-col border-b border-white/10 text-white">
-            <div className="flex justify-between items-center p-3 sm:p-4 gap-2">
-              <div className="font-bold flex items-center gap-2 min-w-0">
-                <Lock size={16} className="text-leaf shrink-0" />
-                <span className="truncate text-xs sm:text-sm">
-                  {activePdf.title || "Formulation Notes"}
-                </span>
-                {pdfResources.length > 1 && (
-                  <span className="rounded-full bg-leaf/20 text-leaf text-[10px] font-black px-2 py-0.5 shrink-0">
-                    {selectedPdfIndex + 1}/{pdfResources.length}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                <a
-                  href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}&download=true`}
-                  download={activePdf.title ? `${activePdf.title}.pdf` : `${course.title}-notes.pdf`}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-leaf hover:bg-moss px-3.5 py-1.5 text-xs font-bold text-white transition shadow-sm active:scale-95"
-                  title="Download PDF"
-                >
-                  <Download size={13} /> <span className="hidden sm:inline">Download</span> PDF
-                </a>
-                <a
-                  href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1.5 sm:p-2 hover:bg-white/10 rounded-full transition text-cream/70 hover:text-white"
-                  title="Open in new window"
-                >
-                  <ExternalLink size={16} />
-                </a>
-                <button
-                  onClick={() => setShowNotes(false)}
-                  className="p-1.5 sm:p-2 hover:bg-white/10 rounded-full transition"
-                  title="Close viewer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            {/* Mobile helper notice for phone screens */}
-            <div className="px-3 pb-2.5 sm:hidden flex items-center justify-between text-[11px] text-cream/80 bg-white/5 border-t border-white/5 pt-1.5">
-              <span>📱 Reading on phone?</span>
-              <div className="flex items-center gap-3">
-                <a
-                  href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-leaf font-bold underline inline-flex items-center gap-1"
-                >
-                  <ExternalLink size={11} /> Open
-                </a>
-                <a
-                  href={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}&download=true`}
-                  download={activePdf.title ? `${activePdf.title}.pdf` : `${course.title}-notes.pdf`}
-                  className="text-emerald-400 font-bold underline inline-flex items-center gap-1"
-                >
-                  <Download size={11} /> Download
-                </a>
-              </div>
-            </div>
-
-            {/* Multiple PDF Selector Tabs */}
-            {pdfResources.length > 1 && (
-              <div className="flex items-center gap-2 px-3 sm:px-4 pb-2.5 overflow-x-auto scrollbar-none">
-                {pdfResources.map((item, idx) => (
-                  <button
-                    key={item.id || idx}
-                    onClick={() => {
-                      if (selectedPdfIndex !== idx) {
-                        setSelectedPdfIndex(idx);
-                        setPdfLoading(true);
-                      }
-                    }}
-                    className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold whitespace-nowrap transition ${
-                      selectedPdfIndex === idx
-                        ? "bg-leaf text-white shadow-sm"
-                        : "bg-white/10 text-cream/70 hover:bg-white/20 hover:text-white"
-                    }`}
-                  >
-                    <FileText size={12} />
-                    <span>{item.title}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 w-full h-full bg-[#1e2327] relative">
-            {pdfLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1c2420] text-cream z-10 transition-opacity">
-                <Loader2 className="size-8 animate-spin text-leaf mb-3" />
-                <p className="text-sm font-bold text-cream">Opening formulation notes...</p>
-                <p className="text-xs text-cream/60 mt-1">Rendering PDF viewer</p>
-              </div>
-            )}
-            <iframe 
-              key={activePdf.id || selectedPdfIndex}
-              src={`/api/courses/${course.slug}/pdf?id=${encodeURIComponent(activePdf.id)}`} 
-              className="w-full h-full border-0" 
-              title={activePdf.title || "Formulation Notes"}
-              onLoad={() => setPdfLoading(false)}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Global Anti-Theft Wrapper */}
       <AntiTheft />

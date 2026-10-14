@@ -133,51 +133,46 @@ export async function GET(
     }
 
     // 3. Check access rights:
-    // Free courses: immediate access
-    // Paid courses: require logged-in user who is Admin or Actively Enrolled
-    const isFree = course.is_free || Number(course.price_inr) === 0;
+    // STRICT: Only actively enrolled students and admins can download formulation notes and PDFs
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!isFree) {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Access restricted. Please log in to download formulation notes." },
+        { status: 401 }
+      );
+    }
 
-      if (!user) {
-        return NextResponse.json(
-          { error: "Please log in to view or download course formulation notes." },
-          { status: 401 }
-        );
-      }
+    // Check admin status
+    const { data: profile } = await admin
+      .from("lms_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
 
-      // Check admin status
-      const { data: profile } = await admin
-        .from("lms_profiles")
-        .select("role")
-        .eq("id", user.id)
+    const isAdmin = profile?.role === "admin";
+
+    if (!isAdmin) {
+      // Verify active enrollment in lms_enrollments
+      const { data: enrollment } = await admin
+        .from("lms_enrollments")
+        .select("id, status")
+        .eq("user_id", user.id)
+        .eq("course_id", course.id)
+        .eq("status", "active")
         .maybeSingle();
 
-      const isAdmin = profile?.role === "admin";
-
-      if (!isAdmin) {
-        // Verify active enrollment in lms_enrollments
-        const { data: enrollment } = await admin
-          .from("lms_enrollments")
-          .select("id, status")
-          .eq("user_id", user.id)
-          .eq("course_id", course.id)
-          .eq("status", "active")
-          .maybeSingle();
-
-        if (!enrollment) {
-          return NextResponse.json(
-            {
-              error:
-                "Access restricted. Only enrolled students can view and download formulation notes for this course.",
-            },
-            { status: 403 }
-          );
-        }
+      if (!enrollment) {
+        return NextResponse.json(
+          {
+            error:
+              "Access restricted. Only enrolled students can download formulation notes and PDFs for this course.",
+          },
+          { status: 403 }
+        );
       }
     }
 
