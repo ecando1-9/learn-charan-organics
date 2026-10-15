@@ -27,16 +27,34 @@ export function SiteHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const profileCloseTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Close menus on route change
   useEffect(() => {
+    if (profileCloseTimer.current) {
+      clearTimeout(profileCloseTimer.current);
+    }
     setMenuOpen(false);
     setProfileOpen(false);
   }, [pathname]);
 
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (profileCloseTimer.current) {
+        clearTimeout(profileCloseTimer.current);
+      }
+    };
+  }, []);
+
   // Click outside to close profile dropdown
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      // Do not close dropdown if clicking inside a modal or dialog
+      if (target?.closest(".logout-modal") || target?.closest('[role="dialog"]')) {
+        return;
+      }
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
       }
@@ -117,25 +135,49 @@ export function SiteHeader() {
                   <Users2 size={16} className="mr-1.5" /> Groups Chat
                 </Link>
 
-                {/* Profile menu with hover bridge & click persistence */}
+                {/* Profile menu with hover safety bridge & persistent click */}
                 <div
                   ref={profileRef}
                   className="relative"
-                  onMouseEnter={() => setProfileOpen(true)}
-                  onMouseLeave={() => setProfileOpen(false)}
+                  onMouseEnter={() => {
+                    if (profileCloseTimer.current) {
+                      clearTimeout(profileCloseTimer.current);
+                      profileCloseTimer.current = null;
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    profileCloseTimer.current = setTimeout(() => {
+                      setProfileOpen(false);
+                    }, 400);
+                  }}
                 >
                   <button
                     type="button"
-                    onClick={() => setProfileOpen((prev) => !prev)}
+                    onClick={() => {
+                      if (profileCloseTimer.current) {
+                        clearTimeout(profileCloseTimer.current);
+                        profileCloseTimer.current = null;
+                      }
+                      setProfileOpen((prev) => !prev);
+                    }}
                     className="grid size-10 place-items-center rounded-full bg-forest text-cream shadow-md transition hover:scale-105 border-2 border-transparent hover:border-leaf/50 cursor-pointer"
                     aria-label="Profile navigation menu"
+                    aria-expanded={profileOpen}
                   >
                     <UserRound size={18} />
                   </button>
 
                   {profileOpen && (
-                    <div className="absolute right-0 top-full pt-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                      <div className="w-52 flex flex-col rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-forest/10 dark:bg-[#0e1f18] dark:ring-white/10">
+                    <div
+                      className="absolute right-0 top-full pt-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+                      onMouseEnter={() => {
+                        if (profileCloseTimer.current) {
+                          clearTimeout(profileCloseTimer.current);
+                          profileCloseTimer.current = null;
+                        }
+                      }}
+                    >
+                      <div className="w-56 flex flex-col rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-forest/10 dark:bg-[#0e1f18] dark:ring-white/10">
                         <div className="px-3 py-2 border-b border-forest/10 dark:border-white/10 mb-1">
                           <p className="text-xs font-bold text-ink/50 dark:text-cream/50 truncate">{userLabel}</p>
                           {isAdmin && (
@@ -162,7 +204,7 @@ export function SiteHeader() {
                         <Link href="/dashboard/certificates" onClick={() => setProfileOpen(false)} className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Certificates</Link>
                         <Link href="/dashboard/settings" onClick={() => setProfileOpen(false)} className="rounded-xl px-3 py-2 text-sm font-bold text-forest hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10 transition">Settings</Link>
                         <div className="mt-1 pt-1 border-t border-forest/10 dark:border-white/10">
-                          <LogoutButton compact />
+                          <LogoutButton asMenuItem onLogout={() => setProfileOpen(false)} />
                         </div>
                       </div>
                     </div>
@@ -257,7 +299,9 @@ export function SiteHeader() {
                   <Link href="/dashboard/certificates" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
                     <GraduationCap size={17} /> Certificates
                   </Link>
-                  <LogoutButton compact />
+                  <div className="pt-1">
+                    <LogoutButton asMenuItem onLogout={() => setMenuOpen(false)} />
+                  </div>
                 </>
               ) : (
                 <Link href="/login" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream">

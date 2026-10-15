@@ -431,6 +431,181 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+export interface PasswordResetEmailParams {
+  toEmail: string;
+  userName?: string;
+  resetLink: string;
+  otpCode?: string;
+  appUrl?: string;
+}
+
+export async function sendPasswordResetEmail({
+  toEmail,
+  userName,
+  resetLink,
+  otpCode,
+  appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === "development" ? "http://localhost:3000" : "https://learn.charanorganics.com"),
+}: PasswordResetEmailParams) {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    console.warn("[Resend] RESEND_API_KEY is not configured in environment variables. Password reset email skipped.");
+    return {
+      success: false,
+      error: "RESEND_API_KEY not configured. Please add RESEND_API_KEY to your .env.local file.",
+    };
+  }
+
+  try {
+    const resend = new Resend(apiKey);
+    const fromSender = getEmailFromAddress();
+
+    const issueDate = new Date().toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password - Charan Organics Academy</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f8f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f8f5; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 580px; background-color: #ffffff; border-radius: 26px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,0.07); border: 1px solid #e2ebe0;">
+          
+          <!-- Corporate Header Banner -->
+          <tr>
+            <td style="background-color: #0b291b; padding: 34px 28px 28px 28px; text-align: center; border-bottom: 3px solid #10b981;">
+              <img src="https://res.cloudinary.com/dur6fkyoz/image/upload/v1773331762/charan-emblem-tight_c2mcw3.png" alt="Charan Organics Logo" width="70" height="70" style="display: block; margin: 0 auto 12px auto; border-radius: 16px; border: 2px solid rgba(255,255,255,0.25); background-color: #ffffff;" />
+              <h1 style="color: #ffffff; margin: 0; font-size: 23px; font-weight: 900; letter-spacing: -0.5px;">Charan Organics Academy</h1>
+              <p style="color: #a7f3d0; margin: 6px 0 0 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;">Account Security &bull; Password Reset</p>
+            </td>
+          </tr>
+
+          <!-- Document Sub-Header Bar -->
+          <tr>
+            <td style="background-color: #071f14; padding: 10px 28px; color: #d1fae5; font-size: 11px; font-weight: 600;">
+              <table width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="color: #9cd6ba;">Request For: <span style="color: #ffffff; font-weight: 700;">${escapeHtml(toEmail)}</span></td>
+                  <td style="text-align: right; color: #9cd6ba;">Date: <span style="color: #ffffff; font-weight: 700;">${issueDate}</span></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 32px 28px 22px 28px;">
+              <h2 style="color: #0b291b; margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">
+                Hello ${escapeHtml(userName || "Learner")},
+              </h2>
+              <p style="color: #4b5563; font-size: 14px; line-height: 1.65; margin: 0 0 18px 0;">
+                We received a request to reset the password for your <strong>Charan Organics Academy</strong> account.
+              </p>
+              <p style="color: #4b5563; font-size: 14px; line-height: 1.65; margin: 0 0 24px 0;">
+                Click the button below to choose a new password. For security reasons, this link is valid for <strong>1 hour</strong> and can only be used once.
+              </p>
+
+              <!-- Reset Password Button -->
+              <div style="text-align: center; margin: 26px 0 28px 0;">
+                <a href="${resetLink}" target="_blank" rel="noopener noreferrer" style="background-color: #166534; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 800; padding: 14px 34px; border-radius: 50px; display: inline-block; box-shadow: 0 4px 14px rgba(22, 101, 52, 0.35); letter-spacing: 0.3px;">
+                  Reset My Password &rarr;
+                </a>
+              </div>
+
+              ${otpCode ? `
+              <!-- 6-digit OTP code alternative -->
+              <div style="background-color: #f7faf7; border: 1px solid #dce8dd; border-radius: 16px; padding: 18px 20px; text-align: center; margin-bottom: 24px;">
+                <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.8px;">
+                  Or use this 6-digit security code
+                </p>
+                <div style="font-family: monospace, Courier, sans-serif; font-size: 28px; font-weight: 900; letter-spacing: 6px; color: #0b291b; padding: 6px 0;">
+                  ${escapeHtml(otpCode)}
+                </div>
+                <p style="margin: 4px 0 0 0; font-size: 11px; color: #6b7280;">
+                  You can enter this code directly on the reset password screen.
+                </p>
+              </div>
+              ` : ""}
+
+              <!-- Security Info Box -->
+              <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 16px; padding: 16px 20px; margin-bottom: 24px;">
+                <div style="color: #065f46; font-weight: 800; font-size: 13px; margin-bottom: 4px;">
+                  🛡️ Security Tip
+                </div>
+                <div style="color: #047857; font-size: 12px; line-height: 1.55;">
+                  If you did not request a password reset, you can safely disregard this email. Your current password remains secure and will not be changed.
+                </div>
+              </div>
+
+              <!-- Fallback Link -->
+              <div style="border-top: 1px dashed #cbdad0; padding-top: 16px; margin-top: 20px;">
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px; font-weight: 600;">
+                  Button not working? Copy and paste this URL directly into your web browser:
+                </div>
+                <div style="font-size: 11px; color: #166534; word-break: break-all; background-color: #f7faf7; padding: 10px 14px; border-radius: 10px; font-family: monospace; border: 1px solid #dce8dd; line-height: 1.4;">
+                  ${escapeHtml(resetLink)}
+                </div>
+              </div>
+
+              <!-- Support Desk -->
+              <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f7faf5; border-radius: 14px; border: 1px solid #dce8dd; padding: 14px; margin-top: 24px;">
+                <tr>
+                  <td style="font-size: 11px; color: #4b5563; line-height: 1.6; text-align: center;">
+                    Need help? WhatsApp: <a href="https://wa.me/${PAYMENT_CONFIG.supportWhatsapp}" style="color: #166534; font-weight: 800; text-decoration: none;">+91 ${PAYMENT_CONFIG.supportPhone}</a> &nbsp;|&nbsp;
+                    Email: <a href="mailto:orders@charanorganics.com" style="color: #166534; font-weight: 700; text-decoration: none;">orders@charanorganics.com</a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Corporate Legal Footer -->
+          <tr>
+            <td style="background-color: #edf3ec; padding: 22px 28px; border-top: 1px solid #dce8dd; text-align: center;">
+              <p style="color: #0b291b; font-size: 12px; font-weight: 800; margin: 0 0 4px 0;">
+                Charan Organics Academy
+              </p>
+              <p style="color: #6b7280; font-size: 10px; line-height: 1.4; margin: 0 0 6px 0;">
+                India's Premier Academy for Organic Cosmetic Chemistry, Botanical Extractions, and Soapmaking
+              </p>
+              <p style="color: #9ca3af; font-size: 10px; margin: 0;">
+                &copy; ${new Date().getFullYear()} Charan Organics Academy. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+
+    const data = await resend.emails.send({
+      from: fromSender,
+      to: [toEmail],
+      subject: `🔑 Reset Your Password | Charan Organics Academy`,
+      html: htmlContent,
+    });
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error("[Resend] Error sending password reset email:", error);
+    return { success: false, error: error?.message || "Failed to send reset email" };
+  }
+}
+
 export async function sendTestEmail(toEmail: string) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {

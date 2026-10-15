@@ -39,7 +39,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  devIndicators: false,
+  devIndicators: {
+    appIsrStatus: false,
+    buildActivity: false,
+  },
   compress: true,
   poweredByHeader: false,
   experimental: {
@@ -69,13 +72,6 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "res.cloudinary.com" },
       { protocol: "https", hostname: "*.b-cdn.net" },
     ],
-  },
-
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = false;
-    }
-    return config;
   },
 };
 

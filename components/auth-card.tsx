@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2, Mail } from "lucide-react";
@@ -19,6 +19,20 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "error" | "success" } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (mode === "login" && searchParams.get("reset") === "success") {
+      setMessage({
+        text: "Your password has been updated successfully! Please sign in with your new password.",
+        type: "success",
+      });
+    } else if (searchParams.get("error")) {
+      setMessage({
+        text: searchParams.get("error") || "Authentication error occurred.",
+        type: "error",
+      });
+    }
+  }, [mode, searchParams]);
 
   const title =
     mode === "login" ? "Welcome back" :
@@ -48,10 +62,30 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
     setMessage(null);
 
     if (mode === "forgot") {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${getBrowserAppUrl()}/login`
-      });
-      setMessage({ text: error ? error.message : "Reset link sent! Check your inbox.", type: error ? "error" : "success" });
+      try {
+        const res = await fetch("/api/auth/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok || !result.success) {
+          setMessage({
+            text: result.error || "No account found with this email address.",
+            type: "error",
+          });
+        } else {
+          setMessage({
+            text: result.message || "Reset link sent! Check your inbox.",
+            type: "success",
+          });
+        }
+      } catch (err: any) {
+        setMessage({
+          text: err?.message || "Failed to submit request. Please try again.",
+          type: "error",
+        });
+      }
       setLoading(false);
       return;
     }
