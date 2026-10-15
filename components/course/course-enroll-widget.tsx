@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -53,6 +53,16 @@ export function CourseEnrollWidget({
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (showAuthModal) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [showAuthModal]);
 
   const activePlan = variants.find((v) => v.id === selectedPlanId) || {
     id: "default",

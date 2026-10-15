@@ -1,6 +1,7 @@
-import { unstable_noStore as noStore } from "next/cache";
+import { unstable_cache } from "next/cache";
 import type { Course, CourseLevel, Lesson, Module } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { parsePdfResources } from "@/lib/course-pdfs";
 
@@ -139,10 +140,21 @@ export async function getUserEnrolledCourseIds(): Promise<string[]> {
   }
 }
 
+function getPublicSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
+  return createSupabaseClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
 async function getCategoryMap(categoryIds: string[]) {
   if (categoryIds.length === 0) return new Map<string, string>();
 
-  const supabase = await createClient();
+  const supabase = getPublicSupabase();
   const { data } = await supabase
     .from("lms_course_categories")
     .select("id,name")
@@ -151,24 +163,29 @@ async function getCategoryMap(categoryIds: string[]) {
   return new Map((data as DbCategory[] | null)?.map((category) => [category.id, category.name]) ?? []);
 }
 
-export async function getPublishedCourses() {
-  noStore();
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("lms_courses")
-    .select("*")
-    .order("sort_order", { ascending: true });
+export const getPublishedCourses = unstable_cache(
+  async () => {
+    const supabase = getPublicSupabase();
+    const { data, error } = await supabase
+      .from("lms_courses")
+      .select("*")
+      .order("sort_order", { ascending: true });
 
-  if (error || !data) return [];
+    if (error || !data) return [];
 
-  const dbCourses = (data as DbCourse[]).filter((c) => c.published !== false);
-  const categoryMap = await getCategoryMap(dbCourses.map((course) => course.category_id).filter(Boolean) as string[]);
-  return dbCourses.map((course) => buildCourse(course, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title));
-}
+    const dbCourses = (data as DbCourse[]).filter((c) => c.published !== false);
+    const categoryMap = await getCategoryMap(dbCourses.map((course) => course.category_id).filter(Boolean) as string[]);
+    return dbCourses.map((course) => buildCourse(course, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title));
+  },
+  ["published_courses_cache"],
+  {
+    revalidate: 60,
+    tags: ["courses"],
+  }
+);
 
-export async function getCourseBySlug(slug: string, includeProtectedVideo = false) {
-  noStore();
-  const supabase = await createClient();
+async function fetchCourseBySlugInternal(slug: string, includeProtectedVideo = false) {
+  const supabase = includeProtectedVideo ? await createClient() : getPublicSupabase();
   const { data: courseData, error } = await supabase
     .from("lms_courses")
     .select("*")
@@ -276,4 +293,22 @@ export async function getCourseBySlug(slug: string, includeProtectedVideo = fals
   }
 
   return buildCourse(mergedCourse, course.category_id ? categoryMap.get(course.category_id) ?? course.title : course.title, modules);
+}
+
+const getCachedCourseBySlug = unstable_cache(
+  async (slug: string) => {
+    return fetchCourseBySlugInternal(slug, false);
+  },
+  ["course_by_slug_cache"],
+  {
+    revalidate: 60,
+    tags: ["courses"],
+  }
+);
+
+export async function getCourseBySlug(slug: string, includeProtectedVideo = false) {
+  if (includeProtectedVideo) {
+    return fetchCourseBySlugInternal(slug, true);
+  }
+  return getCachedCourseBySlug(slug);
 }

@@ -177,8 +177,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                       Your payment has been submitted. Admin will verify and unlock access within 48 hours.
                     </p>
                   </div>
-                  <Link href="/dashboard/settings" className="block">
-                    <Button variant="secondary" className="w-full text-xs min-h-9 py-1">
+                  <Link href="/dashboard#access-requests" className="block">
+                    <Button variant="secondary" className="w-full text-xs min-h-9 py-1 font-bold">
                       View Request Status
                     </Button>
                   </Link>

@@ -35,12 +35,17 @@ export const viewport: Viewport = {
 };
 
 import { TelemetryTracker } from "@/components/telemetry-tracker";
+import { RouteProgressBar } from "@/components/route-progress-bar";
+import { Suspense } from "react";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
+          <Suspense fallback={null}>
+            <RouteProgressBar />
+          </Suspense>
           <TelemetryTracker />
           {children}
           <Toaster />

@@ -11,11 +11,13 @@ export function LogoutButton({
   compact = false,
   iconOnly = false,
   asMenuItem = false,
+  prominent = false,
   onLogout,
 }: {
   compact?: boolean;
   iconOnly?: boolean;
   asMenuItem?: boolean;
+  prominent?: boolean;
   onLogout?: () => void;
 }) {
   const router = useRouter();
@@ -26,6 +28,16 @@ export function LogoutButton({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (showModal) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [showModal]);
 
   async function handleLogout() {
     setIsPending(true);
@@ -96,6 +108,26 @@ export function LogoutButton({
         )
       : null;
 
+  if (prominent) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowModal(true);
+          }}
+          className="w-full flex items-center justify-center gap-2 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-5 shadow-md transition hover:scale-[1.01] active:scale-95 cursor-pointer text-sm"
+        >
+          <LogOut size={17} />
+          <span>Log out of Academy</span>
+        </button>
+        {modalContent}
+      </>
+    );
+  }
+
   if (asMenuItem) {
     return (
       <>
@@ -106,9 +138,9 @@ export function LogoutButton({
             e.stopPropagation();
             setShowModal(true);
           }}
-          className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 transition text-left cursor-pointer"
+          className="w-full flex items-center gap-2.5 rounded-xl border border-red-500/20 bg-red-50/60 dark:bg-red-950/20 px-3.5 py-2.5 text-sm font-bold text-red-600 hover:bg-red-500 hover:text-white dark:text-red-400 dark:hover:bg-red-900 transition text-left cursor-pointer shadow-xs"
         >
-          <LogOut size={15} />
+          <LogOut size={16} />
           <span>Log out</span>
         </button>
         {modalContent}

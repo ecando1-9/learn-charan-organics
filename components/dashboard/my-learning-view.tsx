@@ -21,10 +21,12 @@ export function MyLearningView({
   enrolledCourses,
   freeCourses,
   progressList,
+  pendingRequests = [],
 }: {
   enrolledCourses: Course[];
   freeCourses: Course[];
   progressList: UserCourseProgress[];
+  pendingRequests?: any[];
 }) {
   const [activeTab, setActiveTab] = useState<"all" | "premium" | "free">("all");
 
@@ -77,6 +79,56 @@ export function MyLearningView({
           </button>
         </Link>
       </div>
+
+      {/* ── COURSE ACCESS REQUESTS: Prominent at the VERY TOP of the page ── */}
+      {pendingRequests.length > 0 && (
+        <div id="access-requests" className="rounded-[2.5rem] bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent p-6 sm:p-7 border-2 border-amber-400/50 shadow-soft space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="grid size-10 place-items-center rounded-2xl bg-amber-500 text-white shadow-md">
+                <Clock size={20} />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full">
+                  Under Verification
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-forest dark:text-cream mt-0.5">
+                  Course Access Requests ({pendingRequests.length})
+                </h2>
+              </div>
+            </div>
+            <a
+              href="https://wa.me/918247838125?text=Hi%20Charan%20Organics,%20I%20have%20submitted%20my%20course%20enrollment%20payment.%20Please%20verify%20and%20unlock%20access."
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-bold transition shadow-sm w-fit"
+            >
+              Instant Unlock via WhatsApp →
+            </a>
+          </div>
+
+          <div className="grid gap-3">
+            {pendingRequests.map((req) => (
+              <div
+                key={req.id}
+                className="rounded-2xl bg-white dark:bg-white/5 border border-amber-500/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+              >
+                <div>
+                  <p className="font-black text-sm text-forest dark:text-cream">{req.course_title}</p>
+                  <p className="text-xs text-ink/60 dark:text-cream/60 mt-0.5">
+                    Amount: <strong className="text-leaf">₹{req.amount_inr}</strong> &middot; UTR: {req.utr_number || "Payment proof submitted"} &middot; Submitted: {new Date(req.requested_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1 bg-amber-100/80 dark:bg-amber-950/50 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800/40">
+                    <Clock size={13} /> Unlocking within 24-48 hrs
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── 1. RECENTLY WATCHED / RESUME LEARNING BANNER ── */}
       {featuredResume && (

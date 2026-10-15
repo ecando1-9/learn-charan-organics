@@ -38,6 +38,30 @@ export function SiteHeader() {
     setProfileOpen(false);
   }, [pathname]);
 
+  // Lock background scroll when mobile menu is open
+  useEffect(() => {
+    if (menuOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalWidth = document.body.style.width;
+      const originalTop = document.body.style.top;
+      const scrollY = window.scrollY;
+
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = "100%";
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [menuOpen]);
+
   // Clean up timer on unmount
   useEffect(() => {
     return () => {
@@ -237,28 +261,36 @@ export function SiteHeader() {
         </div>
       </header>
 
-      {/* Mobile menu drawer */}
+      {/* Mobile menu drawer — High z-index [80] ensures it is strictly above bottom navigation */}
       {menuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMenuOpen(false)}>
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div
+          className="fixed inset-0 z-[80] lg:hidden touch-none select-none overscroll-contain"
+          onClick={() => setMenuOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm touch-none" />
           <div
-            className="absolute right-0 top-0 h-full w-72 bg-linen shadow-2xl dark:bg-[#0e1f18] flex flex-col"
+            className="absolute right-0 top-0 h-full w-80 max-w-[88vw] bg-linen shadow-2xl dark:bg-[#0e1f18] flex flex-col overflow-y-auto overscroll-contain touch-pan-y"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer header */}
-            <div className="flex items-center justify-between border-b border-forest/10 px-5 py-5 dark:border-white/10">
+            <div className="flex items-center justify-between border-b border-forest/10 px-5 py-5 dark:border-white/10 shrink-0">
               <BrandLogo />
-              <button onClick={() => setMenuOpen(false)} className="grid size-9 place-items-center rounded-full bg-forest/5 dark:bg-white/10">
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="grid size-9 place-items-center rounded-full bg-forest/5 dark:bg-white/10 hover:bg-forest/10 transition"
+                aria-label="Close menu"
+              >
                 <X size={18} />
               </button>
             </div>
 
             {/* Nav links */}
-            <nav className="flex flex-col gap-1 p-4">
+            <nav className="flex flex-col gap-1 p-4 shrink-0">
               {links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
+                  onClick={() => setMenuOpen(false)}
                   className={cn(
                     "rounded-2xl px-4 py-3 text-sm font-semibold text-ink/75 transition hover:bg-forest/5 dark:text-cream/80 dark:hover:bg-white/10",
                     pathname === link.href && "bg-forest/10 text-forest dark:bg-white/10 dark:text-white"
@@ -269,8 +301,8 @@ export function SiteHeader() {
               ))}
             </nav>
 
-            {/* Bottom actions */}
-            <div className="mt-auto space-y-3 border-t border-forest/10 p-4 dark:border-white/10">
+            {/* Bottom actions with generous bottom padding so Logout is 100% visible */}
+            <div className="mt-auto space-y-3 border-t border-forest/10 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] dark:border-white/10 shrink-0">
               <button
                 onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); }}
                 className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-ink/75 transition hover:bg-forest/5 dark:text-cream/80 dark:hover:bg-white/10"
@@ -282,31 +314,64 @@ export function SiteHeader() {
               {userLabel ? (
                 <>
                   {isAdmin && (
-                    <Link href="/admin" className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-bold text-emerald-600 transition hover:bg-forest/5 dark:text-emerald-400 dark:hover:bg-white/10">
+                    <Link
+                      href="/admin"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-bold text-emerald-600 transition hover:bg-forest/5 dark:text-emerald-400 dark:hover:bg-white/10"
+                    >
                       <span>Admin Panel</span>
                       <ShieldCheck size={16} />
                     </Link>
                   )}
-                  <Link href="/dashboard" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10"
+                  >
                     <UserRound size={17} /> {userLabel}
                   </Link>
-                  <Link href="/community" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
+                  <Link
+                    href="/community"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10"
+                  >
                     <Users2 size={17} /> Groups Chat
                   </Link>
-                  <Link href="/dashboard/courses" className="flex items-center gap-3 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream">
+                  <Link
+                    href="/dashboard/courses"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream"
+                  >
                     <BookOpen size={17} /> My Learning
                   </Link>
-                  <Link href="/dashboard/certificates" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10">
+                  <Link
+                    href="/dashboard/certificates"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-forest transition hover:bg-forest/5 dark:text-cream dark:hover:bg-white/10"
+                  >
                     <GraduationCap size={17} /> Certificates
                   </Link>
-                  <div className="pt-1">
+                  <div className="pt-2">
                     <LogoutButton asMenuItem onLogout={() => setMenuOpen(false)} />
                   </div>
                 </>
               ) : (
-                <Link href="/login" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream">
-                  <UserRound size={17} /> Login
-                </Link>
+                <div className="space-y-2">
+                  <Link
+                    href="/login"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-forest px-4 py-3 text-sm font-bold text-cream hover:bg-leaf transition"
+                  >
+                    <UserRound size={17} /> Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-forest/20 px-4 py-3 text-sm font-bold text-forest dark:text-cream hover:bg-forest/5 transition"
+                  >
+                    Create Account
+                  </Link>
+                </div>
               )}
             </div>
           </div>

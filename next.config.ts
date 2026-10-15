@@ -39,10 +39,6 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  devIndicators: {
-    appIsrStatus: false,
-    buildActivity: false,
-  },
   compress: true,
   poweredByHeader: false,
   experimental: {

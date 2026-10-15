@@ -183,12 +183,15 @@ export function CourseCheckout({
   const [copiedUpiId, setCopiedUpiId] = useState(false);
   const [copiedUpiNumber, setCopiedUpiNumber] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState("");
   const [done, setDone] = useState(false);
   const [submittedUtr, setSubmittedUtr] = useState("");
   const [error, setError] = useState("");
   const [showOtherCourses, setShowOtherCourses] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<"bundle" | "payment">("bundle");
   const fileRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   // Authentication State & Modal
   const [authenticated, setAuthenticated] = useState(isAuthenticated);
@@ -207,6 +210,16 @@ export function CourseCheckout({
     setAuthenticated(isAuthenticated);
     setCurrentUserEmail(userEmail);
   }, [isAuthenticated, userEmail]);
+
+  useEffect(() => {
+    if (showAuthModal) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [showAuthModal]);
 
   // Helper to get active variant for a course
   function getCourseActiveVariant(c: CheckoutCourse): CourseDurationVariant {
@@ -250,27 +263,20 @@ export function CourseCheckout({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
-    if (file.size > MAX_SIZE) {
-      setError("Your file has more than 2 MB. Max 2 MB allowed.");
+    // Allow raw phone screenshots up to 25 MB; client compressor shrinks to ~200 KB
+    const MAX_RAW_SIZE = 25 * 1024 * 1024;
+    if (file.size > MAX_RAW_SIZE) {
+      setError("Please select an image smaller than 25 MB.");
       setProofFile(null);
       setProofPreview(null);
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
 
-    // Clear previous file size error if any
-    setError((prev) => (prev.includes("2 MB") ? "" : prev));
+    setError("");
 
     try {
       const processed = await compressImageIfNeeded(file);
-      if (processed.size > MAX_SIZE) {
-        setError("Your file has more than 2 MB. Max 2 MB allowed.");
-        setProofFile(null);
-        setProofPreview(null);
-        if (fileRef.current) fileRef.current.value = "";
-        return;
-      }
       setProofFile(processed);
       setProofPreview(URL.createObjectURL(processed));
     } catch {
@@ -436,15 +442,12 @@ export function CourseCheckout({
   async function handleSubmit() {
     if (selected.size === 0) {
       setError("Please select at least one course to enroll.");
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (!utr.trim() && !proofFile) {
-      setError("Please enter your 12-digit UPI / UTR transaction number or upload a screenshot.");
-      return;
-    }
-
-    if (proofFile && proofFile.size > 2 * 1024 * 1024) {
-      setError("Your file has more than 2 MB. Max 2 MB allowed.");
+      setError("Please enter your 12-digit UPI / UTR transaction number or attach a screenshot.");
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
@@ -456,6 +459,8 @@ export function CourseCheckout({
 
     setError("");
     setSubmitting(true);
+    setUploadProgress(15);
+    setUploadStatusText("Checking student account…");
 
     const supabase = createClient();
     const {
@@ -467,7 +472,21 @@ export function CourseCheckout({
       setShowAuthModal(true);
       setError("Please sign in to your student account so this enrollment is linked to your dashboard.");
       setSubmitting(false);
+      setUploadProgress(0);
+      setUploadStatusText("");
       return;
+    }
+
+    setUploadProgress(30);
+    setUploadStatusText("Optimizing screenshot for fast mobile transmission…");
+
+    let finalFile = proofFile;
+    if (proofFile) {
+      try {
+        finalFile = await compressImageIfNeeded(proofFile);
+      } catch {
+        finalFile = proofFile;
+      }
     }
 
     const courseIds = [...selected];
@@ -484,32 +503,81 @@ export function CourseCheckout({
     formData.set("amount", String(totalAmount));
     formData.set("utr_number", utr.trim());
     formData.set("selected_all", String(selected.size === courses.length && courses.length > 0));
-    if (proofFile) {
-      try {
-        const compressed = await compressImageIfNeeded(proofFile);
-        formData.set("proof_file", compressed);
-      } catch {
-        formData.set("proof_file", proofFile);
-      }
+    if (finalFile) {
+      formData.set("proof_file", finalFile);
     }
 
+    setUploadProgress(45);
+    setUploadStatusText("Sending payment details to admissions desk…");
+
+    // Live XHR upload for real-time progress bar on mobile
     try {
-      const res = await submitEnrollmentRequest(formData);
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/enrollment/submit", true);
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const rawPct = event.loaded / event.total;
+            const scaledPct = Math.round(45 + rawPct * 45); // 45% -> 90%
+            setUploadProgress(Math.min(95, scaledPct));
+            setUploadStatusText(`Uploading proof: ${Math.round(rawPct * 100)}%…`);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const res = JSON.parse(xhr.responseText);
+              if (res.success) {
+                setUploadProgress(100);
+                setUploadStatusText("Submitted successfully!");
+                resolve();
+              } else {
+                reject(new Error(res.error || "Submission failed. Please check your details."));
+              }
+            } catch {
+              resolve();
+            }
+          } else {
+            try {
+              const res = JSON.parse(xhr.responseText);
+              reject(new Error(res.error || `Upload failed (Status ${xhr.status})`));
+            } catch {
+              reject(new Error(`Server response error (${xhr.status}). Please try again.`));
+            }
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error("Network connection dropped. Please check your mobile internet and try again."));
+        };
+
+        xhr.ontimeout = () => {
+          reject(new Error("Request timed out. Please check your network or send payment proof via WhatsApp."));
+        };
+
+        xhr.timeout = 50000;
+        xhr.send(formData);
+      });
+
       setSubmitting(false);
-
-      if (res?.error) {
-        setError(res.error);
-        return;
-      }
-
       setSubmittedUtr(utr.trim());
       setDone(true);
     } catch (err: any) {
       setSubmitting(false);
+      setUploadProgress(0);
+      setUploadStatusText("");
       setError(
         err?.message ||
           "Could not submit payment proof. Please check your network connection or contact our helpline."
       );
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate([60, 40, 60]);
+      }
+      setTimeout(() => {
+        errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
     }
   }
 
@@ -1561,8 +1629,8 @@ export function CourseCheckout({
                     <label className="block text-xs font-bold text-forest dark:text-cream uppercase tracking-wide">
                       2. Payment Screenshot (Recommended)
                     </label>
-                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
-                      Max 2 MB
+                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full">
+                      Auto-optimized
                     </span>
                   </div>
                   <input
@@ -1581,7 +1649,7 @@ export function CourseCheckout({
                       />
                       <div className="p-2 bg-white/95 dark:bg-forest/95 backdrop-blur-xs flex items-center justify-between text-xs border-t border-forest/10 dark:border-white/10">
                         <span className="truncate max-w-[210px] text-ink/75 dark:text-cream/75 text-[11px] font-semibold">
-                          {proofFile?.name} {proofFile?.size ? `(${(proofFile.size / (1024 * 1024)).toFixed(2)} MB)` : ""}
+                          {proofFile?.name} {proofFile?.size ? `(${(proofFile.size / 1024).toFixed(0)} KB)` : ""}
                         </span>
                         <button
                           type="button"
@@ -1605,16 +1673,42 @@ export function CourseCheckout({
                     >
                       <Upload size={18} className="text-leaf" />
                       <span className="font-bold text-xs">Click to upload payment screenshot</span>
-                      <span className="text-[10px] text-ink/40 dark:text-cream/40">PNG, JPG or screenshot · Max 2 MB allowed</span>
+                      <span className="text-[10px] text-ink/40 dark:text-cream/40">Screenshots, PNG or JPG · Any resolution</span>
                     </button>
                   )}
                 </div>
               </div>
 
+              {/* Error message banner with auto-scroll ref */}
               {error && (
-                <div className="rounded-2xl bg-red-50 p-3 text-xs font-semibold text-red-600 dark:bg-red-950/30 dark:text-red-400 flex items-center gap-2">
-                  <AlertCircle size={15} className="shrink-0" />
+                <div
+                  ref={errorRef}
+                  className="rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-500/20 p-3.5 text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-2.5 animate-in fade-in zoom-in-95"
+                >
+                  <AlertCircle size={17} className="shrink-0 text-red-500" />
                   <span>{error}</span>
+                </div>
+              )}
+
+              {/* Live Upload Progress Bar */}
+              {submitting && (
+                <div className="space-y-2 rounded-2xl bg-emerald-500/10 dark:bg-emerald-950/30 p-4 border border-emerald-500/30 animate-in fade-in">
+                  <div className="flex justify-between items-center text-xs font-bold text-forest dark:text-cream">
+                    <span className="flex items-center gap-2">
+                      <Loader2 size={14} className="animate-spin text-emerald-600 dark:text-emerald-400" />
+                      {uploadStatusText || "Submitting payment details…"}
+                    </span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-black">{uploadProgress}%</span>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-forest/10 dark:bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 via-leaf to-amber-400 transition-all duration-300 rounded-full"
+                      style={{ width: `${Math.max(5, uploadProgress)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-ink/50 dark:text-cream/50 text-center">
+                    Please keep this window open while your payment proof is being submitted.
+                  </p>
                 </div>
               )}
 

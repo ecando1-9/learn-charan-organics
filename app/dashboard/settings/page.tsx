@@ -98,64 +98,29 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <h1 className="text-3xl font-black text-forest dark:text-cream">Account Settings</h1>
 
-      {/* Profile form */}
-      <form onSubmit={handleSubmit} className="grid max-w-2xl gap-4 rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5">
-        <h2 className="text-lg font-black text-forest dark:text-cream">My Profile</h2>
-        <label className="grid gap-2 text-sm font-bold text-ink/70 dark:text-cream/70">
-          Student name
-          <span className="flex items-center gap-3 rounded-2xl bg-linen px-4 dark:bg-white/10">
-            <UserRound size={18} className="text-leaf" />
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="min-h-12 w-full bg-transparent outline-none"
-              placeholder="Student name"
-            />
+      {/* Enrollment Request Status — Placed at the very TOP / START of the page */}
+      <section id="access-requests" className="max-w-2xl rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-black text-forest dark:text-cream">My Course Access Requests</h2>
+            <p className="mt-0.5 text-xs text-ink/60 dark:text-cream/60">
+              Track your payment verification and course activation status.
+            </p>
+          </div>
+          <span className="rounded-full bg-forest/5 dark:bg-white/10 px-3 py-1 text-xs font-bold text-forest dark:text-cream">
+            {requests.length} {requests.length === 1 ? "Request" : "Requests"}
           </span>
-        </label>
-        <label className="grid gap-2 text-sm font-bold text-ink/70 dark:text-cream/70">
-          Email address
-          <span className="flex items-center gap-3 rounded-2xl bg-linen px-4 dark:bg-white/10">
-            <Mail size={18} className="text-leaf" />
-            <input
-              value={email}
-              disabled
-              className="min-h-12 w-full bg-transparent outline-none disabled:opacity-70"
-              placeholder="Email address"
-            />
-          </span>
-        </label>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button type="submit" disabled={loading}>
-            <Save size={18} />
-            {loading ? "Saving…" : "Save profile"}
-          </Button>
-          <LogoutButton />
         </div>
-        {message && (
-          <p className="rounded-2xl bg-linen p-3 text-sm font-semibold text-forest dark:bg-white/10 dark:text-cream">
-            {message}
-          </p>
-        )}
-      </form>
 
-      {/* Enrollment Request Status */}
-      <section className="max-w-2xl rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5">
-        <h2 className="text-lg font-black text-forest dark:text-cream">My Enrollment Requests</h2>
-        <p className="mt-1 text-sm text-ink/60 dark:text-cream/60">
-          Track the status of your course enrollment requests below.
-        </p>
-
-        {/* 48-hour notice */}
+        {/* Notice banner */}
         <div className="mt-4 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/40 dark:bg-amber-950/20">
           <Clock size={18} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
           <div>
             <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
-              Access granted within 48 hours
+              Access granted within 24–48 hours
             </p>
             <p className="mt-0.5 text-xs leading-5 text-amber-600/80 dark:text-amber-400/70">
-              After you submit your payment proof, our team will verify and approve your request within 48 hours.
-              Once approved, your course videos will be unlocked automatically.
+              Our admissions team verifies your UPI payment with bank records. Once verified, your course videos and formulation notes unlock automatically.
             </p>
           </div>
         </div>
@@ -203,6 +168,46 @@ export default function SettingsPage() {
         )}
       </section>
 
+      {/* Profile form */}
+      <form onSubmit={handleSubmit} className="grid max-w-2xl gap-4 rounded-[2rem] bg-white p-6 shadow-soft dark:bg-white/5">
+        <h2 className="text-lg font-black text-forest dark:text-cream">My Profile</h2>
+        <label className="grid gap-2 text-sm font-bold text-ink/70 dark:text-cream/70">
+          Student name
+          <span className="flex items-center gap-3 rounded-2xl bg-linen px-4 dark:bg-white/10">
+            <UserRound size={18} className="text-leaf" />
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="min-h-12 w-full bg-transparent outline-none"
+              placeholder="Student name"
+            />
+          </span>
+        </label>
+        <label className="grid gap-2 text-sm font-bold text-ink/70 dark:text-cream/70">
+          Email address
+          <span className="flex items-center gap-3 rounded-2xl bg-linen px-4 dark:bg-white/10">
+            <Mail size={18} className="text-leaf" />
+            <input
+              value={email}
+              disabled
+              className="min-h-12 w-full bg-transparent outline-none disabled:opacity-70"
+              placeholder="Email address"
+            />
+          </span>
+        </label>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button type="submit" disabled={loading}>
+            <Save size={18} />
+            {loading ? "Saving…" : "Save profile"}
+          </Button>
+        </div>
+        {message && (
+          <p className="rounded-2xl bg-linen p-3 text-sm font-semibold text-forest dark:bg-white/10 dark:text-cream">
+            {message}
+          </p>
+        )}
+      </form>
+
       {/* Contact Support */}
       <section className="max-w-2xl rounded-[2rem] bg-forest p-6 text-cream shadow-soft">
         <h2 className="text-lg font-black">Need help with your enrollment?</h2>
@@ -232,6 +237,19 @@ export default function SettingsPage() {
               <p className="font-black">+91 824 783 8125</p>
             </div>
           </a>
+        </div>
+      </section>
+
+      {/* Account Session & Sign Out Section — Prominently visible with generous bottom clearance */}
+      <section className="max-w-2xl rounded-[2rem] bg-white dark:bg-white/5 border border-red-500/20 p-6 shadow-soft space-y-4 mb-20 sm:mb-12">
+        <div>
+          <h2 className="text-lg font-black text-forest dark:text-cream">Account Session</h2>
+          <p className="mt-1 text-xs text-ink/60 dark:text-cream/60">
+            Currently signed in as <span className="font-bold text-forest dark:text-cream">{email || "Student"}</span>
+          </p>
+        </div>
+        <div className="pt-2">
+          <LogoutButton prominent />
         </div>
       </section>
     </div>

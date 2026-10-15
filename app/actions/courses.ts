@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +33,7 @@ export async function toggleCourseVisibility(courseId: string, published: boolea
 
     if (error) return { error: error.message };
 
+    revalidateTag("courses");
     revalidatePath("/admin/courses");
     revalidatePath("/courses");
     revalidatePath("/dashboard");
@@ -60,6 +61,7 @@ export async function bulkUpdateCourseVisibility(courseIds: string[], published:
 
     if (error) return { error: error.message };
 
+    revalidateTag("courses");
     revalidatePath("/admin/courses");
     revalidatePath("/courses");
     revalidatePath("/dashboard");
@@ -85,6 +87,7 @@ export async function deleteCourse(courseId: string) {
 
     if (error) return { error: error.message };
 
+    revalidateTag("courses");
     revalidatePath("/admin/courses");
     revalidatePath("/courses");
     revalidatePath("/dashboard");
@@ -112,6 +115,7 @@ export async function bulkDeleteCourses(courseIds: string[]) {
 
     if (error) return { error: error.message };
 
+    revalidateTag("courses");
     revalidatePath("/admin/courses");
     revalidatePath("/courses");
     revalidatePath("/dashboard");

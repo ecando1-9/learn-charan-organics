@@ -11,6 +11,7 @@ const fallbackThumb = "https://res.cloudinary.com/dur6fkyoz/image/upload/v177333
 export function CourseCard({ course }: { course: Course }) {
   const isFree = course.price === 0;
   const [imgSrc, setImgSrc] = useState(course.thumbnail || fallbackThumb);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const destinationUrl = course.isEnrolled
     ? `/learn/${course.slug}/main-video`
@@ -18,15 +19,31 @@ export function CourseCard({ course }: { course: Course }) {
     ? `/learn/${course.slug}/main-video`
     : `/courses/${course.slug}`;
 
+  function handleClick() {
+    setIsNavigating(true);
+    // Auto reset if navigation takes too long or user navigates back
+    setTimeout(() => {
+      setIsNavigating(false);
+    }, 6000);
+  }
+
   return (
     <Link
       href={destinationUrl}
+      onClick={handleClick}
       className={`group relative flex flex-col overflow-hidden rounded-2xl sm:rounded-[2rem] border transition-all duration-300 hover:-translate-y-1 hover:shadow-glass ${
         course.isEnrolled
           ? "border-emerald-500/40 bg-emerald-500/5 shadow-soft dark:border-emerald-500/30 dark:bg-emerald-950/20"
           : "border-forest/10 bg-white shadow-soft dark:border-white/10 dark:bg-white/5"
       }`}
     >
+      {/* Instant Buffering Indicator Overlay upon Click/Tap */}
+      {isNavigating && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs p-4 text-center text-white animate-in fade-in duration-150">
+          <div className="size-10 sm:size-12 rounded-full border-3 border-emerald-400/30 border-t-emerald-400 animate-spin" />
+          <span className="mt-2 text-xs font-bold text-emerald-200">Opening…</span>
+        </div>
+      )}
       {/* Thumbnail Aspect Ratio */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-black/5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
