@@ -68,63 +68,66 @@ interface Props {
 }
 
 async function compressImageIfNeeded(file: File): Promise<File> {
-  // If file is already small (under 750KB) or not an image, return unchanged
-  if (!file.type.startsWith("image/") || file.size <= 750 * 1024) {
+  // If file is already small (under 400KB) or not an image, return unchanged
+  if (!file.type.startsWith("image/") || file.size <= 400 * 1024) {
     return file;
   }
 
   return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const maxDimension = 1600;
-        let { width, height } = img;
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
 
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxDimension = 1200;
+      let { width, height } = img;
+
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
           }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-
-        if (!ctx) {
-          resolve(file);
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              resolve(file);
-              return;
-            }
-            const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-            const compressed = new File([blob], cleanName, {
-              type: "image/jpeg",
-              lastModified: Date.now(),
-            });
-            resolve(compressed);
-          },
-          "image/jpeg",
-          0.82
-        );
-      };
-      img.onerror = () => resolve(file);
-      img.src = event.target?.result as string;
+          const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+          const compressed = new File([blob], cleanName, {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+          resolve(compressed);
+        },
+        "image/jpeg",
+        0.72
+      );
     };
-    reader.onerror = () => resolve(file);
-    reader.readAsDataURL(file);
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+
+    img.src = objectUrl;
   });
 }
 
@@ -459,35 +462,8 @@ export function CourseCheckout({
 
     setError("");
     setSubmitting(true);
-    setUploadProgress(15);
-    setUploadStatusText("Checking student account…");
-
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setAuthenticated(false);
-      setShowAuthModal(true);
-      setError("Please sign in to your student account so this enrollment is linked to your dashboard.");
-      setSubmitting(false);
-      setUploadProgress(0);
-      setUploadStatusText("");
-      return;
-    }
-
-    setUploadProgress(30);
-    setUploadStatusText("Optimizing screenshot for fast mobile transmission…");
-
-    let finalFile = proofFile;
-    if (proofFile) {
-      try {
-        finalFile = await compressImageIfNeeded(proofFile);
-      } catch {
-        finalFile = proofFile;
-      }
-    }
+    setUploadProgress(25);
+    setUploadStatusText("Submitting payment verification details…");
 
     const courseIds = [...selected];
     const courseTitles = selectedCourses
@@ -503,12 +479,12 @@ export function CourseCheckout({
     formData.set("amount", String(totalAmount));
     formData.set("utr_number", utr.trim());
     formData.set("selected_all", String(selected.size === courses.length && courses.length > 0));
-    if (finalFile) {
-      formData.set("proof_file", finalFile);
+    if (proofFile) {
+      formData.set("proof_file", proofFile);
     }
 
     setUploadProgress(45);
-    setUploadStatusText("Sending payment details to admissions desk…");
+    setUploadStatusText("Uploading proof & saving request…");
 
     // Live XHR upload for real-time progress bar on mobile
     try {
@@ -526,6 +502,13 @@ export function CourseCheckout({
         };
 
         xhr.onload = () => {
+          if (xhr.status === 401) {
+            setAuthenticated(false);
+            setShowAuthModal(true);
+            reject(new Error("Please sign in or register to link your enrollment to your student account."));
+            return;
+          }
+
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const res = JSON.parse(xhr.responseText);
@@ -557,7 +540,7 @@ export function CourseCheckout({
           reject(new Error("Request timed out. Please check your network or send payment proof via WhatsApp."));
         };
 
-        xhr.timeout = 50000;
+        xhr.timeout = 25000;
         xhr.send(formData);
       });
 

@@ -102,10 +102,22 @@ export function SiteHeader() {
       setIsAdmin(Boolean(isMeta));
     }
 
+    // 1. Fast local session check (instant, zero network latency)
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (user) {
+        setUserLabel(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null);
+        evaluateAdmin(user);
+      }
+    });
+
+    // 2. Server-validated user check
     supabase.auth.getUser().then(({ data }) => {
-      const user = data.user;
-      setUserLabel(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null);
-      evaluateAdmin(user);
+      const user = data?.user;
+      if (user) {
+        setUserLabel(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null);
+        evaluateAdmin(user);
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -385,7 +397,7 @@ export function SiteHeader() {
           { href: "/courses", label: "Courses", icon: Search },
           { href: "/dashboard/courses", label: "My Learning", icon: BookOpen },
           { href: "/community", label: "Community", icon: Users2 },
-          { href: userLabel ? "/dashboard/settings" : "/login", label: "Profile", icon: UserRound }
+          { href: "/dashboard", label: "Profile", icon: UserRound }
         ].map((item) => {
           const isActive =
             item.href === "/"
@@ -394,8 +406,8 @@ export function SiteHeader() {
               ? pathname === "/dashboard/courses" || pathname?.startsWith("/dashboard/courses")
               : item.href === "/courses"
               ? pathname === "/courses" || pathname?.startsWith("/courses/")
-              : item.href === "/dashboard/settings"
-              ? pathname === "/dashboard/settings"
+              : item.href === "/dashboard"
+              ? pathname === "/dashboard" || pathname?.startsWith("/dashboard/settings")
               : pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href + "/"));
 
           return (

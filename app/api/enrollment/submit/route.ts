@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await ensureLmsProfile(user);
+    // Sync profile non-blocking
+    ensureLmsProfile(user).catch((e) => console.warn("[api/enrollment/submit] Profile notice:", e?.message));
 
     const formData = await request.formData();
     const courseIds = formData.getAll("course_ids") as string[];
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     let paymentProofUrl: string | null = null;
     const admin = createAdminClient();
 
-    // Upload screenshot if provided
+    // Fast screenshot upload with 6s timeout race to guarantee mobile responsiveness
     if (proofFile && proofFile.size > 0) {
       try {
         const ext = proofFile.name.split(".").pop() || "jpg";
@@ -57,18 +58,24 @@ export async function POST(request: NextRequest) {
         const arrayBuffer = await proofFile.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
-        const { error: uploadError } = await admin.storage
+        const uploadPromise = admin.storage
           .from("payment-proofs")
           .upload(path, buffer, {
             contentType: proofFile.type || "image/jpeg",
             upsert: true,
           });
 
-        if (uploadError) {
-          console.warn("[api/enrollment/submit] Storage upload notice:", uploadError.message);
-        } else {
+        const timeoutPromise = new Promise<{ error: Error }>((_, reject) =>
+          setTimeout(() => reject(new Error("Storage upload timeout")), 6000)
+        );
+
+        const res: any = await Promise.race([uploadPromise, timeoutPromise]).catch((e) => ({
+          error: e,
+        }));
+
+        if (res && !res.error) {
           const { data: urlData } = admin.storage.from("payment-proofs").getPublicUrl(path);
-          paymentProofUrl = urlData.publicUrl;
+          paymentProofUrl = urlData?.publicUrl || null;
         }
       } catch (uploadEx: any) {
         console.warn("[api/enrollment/submit] File upload exception:", uploadEx?.message || uploadEx);

@@ -63,19 +63,19 @@ export function SiteFooter() {
               Programs
             </h3>
             <div className="grid gap-2 text-xs sm:text-sm text-cream/75">
-              <Link href="/courses" className="hover:text-white transition">
+              <Link href="/courses" prefetch={false} className="hover:text-white transition">
                 All Masterclasses
               </Link>
-              <Link href="/free-classes" className="hover:text-white transition">
+              <Link href="/free-classes" prefetch={false} className="hover:text-white transition">
                 Free YouTube Classes
               </Link>
-              <Link href="/instructors" className="hover:text-white transition">
+              <Link href="/instructors" prefetch={false} className="hover:text-white transition">
                 Academy Faculty
               </Link>
-              <Link href="/testimonials" className="hover:text-white transition">
+              <Link href="/testimonials" prefetch={false} className="hover:text-white transition">
                 Student Stories
               </Link>
-              <Link href="/enroll" className="hover:text-white transition">
+              <Link href="/enroll" prefetch={false} className="hover:text-white transition">
                 Single-Page Checkout
               </Link>
             </div>
@@ -87,19 +87,19 @@ export function SiteFooter() {
               Knowledge Hub
             </h3>
             <div className="grid gap-2 text-xs sm:text-sm text-cream/75">
-              <Link href="/blog" className="hover:text-white transition">
+              <Link href="/blog" prefetch={false} className="hover:text-white transition">
                 Formulation Articles
               </Link>
-              <Link href="/about" className="hover:text-white transition">
+              <Link href="/about" prefetch={false} className="hover:text-white transition">
                 About the Academy
               </Link>
-              <Link href="/faq" className="hover:text-white transition">
+              <Link href="/faq" prefetch={false} className="hover:text-white transition">
                 Frequently Asked Questions
               </Link>
-              <Link href="/community" className="hover:text-white transition">
+              <Link href="/community" prefetch={false} className="hover:text-white transition">
                 Batch Community Chat
               </Link>
-              <Link href="/dashboard" className="hover:text-white transition">
+              <Link href="/dashboard" prefetch={false} className="hover:text-white transition">
                 Student Learning Portal
               </Link>
             </div>
@@ -111,16 +111,16 @@ export function SiteFooter() {
               Support & Legal
             </h3>
             <div className="grid gap-2 text-xs sm:text-sm text-cream/75">
-              <Link href="/contact" className="hover:text-white transition">
+              <Link href="/contact" prefetch={false} className="hover:text-white transition">
                 Contact Desk
               </Link>
-              <Link href="/verify" className="hover:text-white text-emerald-400 font-bold transition flex items-center gap-1.5">
+              <Link href="/verify" prefetch={false} className="hover:text-white text-emerald-400 font-bold transition flex items-center gap-1.5">
                 <ShieldCheck size={14} /> Verify Certificate
               </Link>
-              <Link href="/privacy" className="hover:text-white transition">
+              <Link href="/privacy" prefetch={false} className="hover:text-white transition">
                 Privacy Policy
               </Link>
-              <Link href="/terms" className="hover:text-white transition">
+              <Link href="/terms" prefetch={false} className="hover:text-white transition">
                 Terms & Conditions
               </Link>
               <a
