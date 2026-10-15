@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ensureLmsProfile } from "@/lib/supabase/profile";
 import { allocateCourseAmounts } from "@/lib/enrollment-amounts";
 import { PAYMENT_CONFIG } from "@/lib/payment-config";
+import { sendEnrollmentApprovalEmail } from "@/lib/email";
 
 async function requireAdminClient() {
   const supabase = await createClient();
@@ -81,8 +82,6 @@ export async function submitEnrollmentRequest(formData: FormData) {
   }
 }
 
-import { sendEnrollmentApprovalEmail } from "@/lib/email";
-
 export async function approveEnrollment(requestId: string) {
   const adminResult = await requireAdminClient();
   if ("error" in adminResult) return { error: adminResult.error };
@@ -91,13 +90,17 @@ export async function approveEnrollment(requestId: string) {
   // Get the request details
   const { data: request, error: reqError } = await admin
     .from("lms_enrollment_requests")
-    .select("user_id, course_ids, amount_inr, selected_all, utr_number, course_title")
+    .select("user_id, course_id, course_ids, amount_inr, selected_all, utr_number, course_title")
     .eq("id", requestId)
     .single();
 
   if (reqError || !request) return { error: "Request not found" };
+  if (!request.user_id) return { error: "User ID missing for request" };
 
   let courseIds: string[] = request.course_ids ?? [];
+  if (courseIds.length === 0 && request.course_id) {
+    courseIds = [request.course_id];
+  }
 
   // If selected_all and no specific ids stored, fetch all published course ids
   if (request.selected_all && courseIds.length === 0) {
@@ -106,6 +109,20 @@ export async function approveEnrollment(requestId: string) {
       .select("id")
       .eq("published", true);
     courseIds = (allCourses ?? []).map((c: { id: string }) => c.id);
+  }
+
+  // Fallback: If still no courseIds, search published courses by course_title match
+  if (courseIds.length === 0 && request.course_title) {
+    const { data: allCourses } = await admin
+      .from("lms_courses")
+      .select("id, title");
+    if (allCourses) {
+      courseIds = allCourses
+        .filter((c: any) =>
+          request.course_title.toLowerCase().includes(c.title.toLowerCase())
+        )
+        .map((c: any) => c.id);
+    }
   }
 
   const coursePrices = new Map<string, number>();
@@ -122,26 +139,65 @@ export async function approveEnrollment(requestId: string) {
     });
   }
 
+  // If fetchedCourses is still empty, fallback to published courses
+  if (fetchedCourses.length === 0 && (request.selected_all || request.course_title)) {
+    const { data: fallbackCourses } = await admin
+      .from("lms_courses")
+      .select("id, title, slug, price_inr, thumbnail_url")
+      .eq("published", true);
+
+    if (fallbackCourses && fallbackCourses.length > 0) {
+      if (request.selected_all) {
+        fetchedCourses = fallbackCourses;
+      } else {
+        fetchedCourses = fallbackCourses.filter((c: any) =>
+          request.course_title?.toLowerCase().includes(c.title.toLowerCase())
+        );
+        if (fetchedCourses.length === 0) {
+          fetchedCourses = [fallbackCourses[0]];
+        }
+      }
+      fetchedCourses.forEach((course: any) => {
+        coursePrices.set(course.id, Number(course.price_inr) || 0);
+      });
+      courseIds = fetchedCourses.map((c: any) => c.id);
+    }
+  }
+
+  const validCourseIds = fetchedCourses.map((c: any) => c.id);
+
   const courseAmounts = allocateCourseAmounts({
-    courseIds,
+    courseIds: validCourseIds,
     totalAmount: Number(request.amount_inr) || 0,
     coursePrices,
     selectedAll: Boolean(request.selected_all),
   });
 
-  // Insert enrollments for each course
-  const enrollments = courseIds.map((courseId) => ({
-    user_id: request.user_id,
-    course_id: courseId,
-    status: "active",
-    amount_paid_inr: courseAmounts.get(courseId) ?? 0,
-  }));
+  // Insert or update enrollments for each valid course
+  if (validCourseIds.length > 0) {
+    const enrollments = validCourseIds.map((courseId) => ({
+      user_id: request.user_id,
+      course_id: courseId,
+      status: "active",
+      amount_paid_inr: courseAmounts.get(courseId) ?? 0,
+      enrolled_at: new Date().toISOString(),
+    }));
 
-  if (enrollments.length > 0) {
     const { error: enrollError } = await admin
       .from("lms_enrollments")
       .upsert(enrollments, { onConflict: "user_id,course_id" });
-    if (enrollError) return { error: enrollError.message };
+
+    if (enrollError) {
+      console.error("[approveEnrollment] Upsert error:", enrollError);
+      return { error: enrollError.message };
+    }
+
+    // Explicitly guarantee active status on all rows
+    await admin
+      .from("lms_enrollments")
+      .update({ status: "active", enrolled_at: new Date().toISOString() })
+      .eq("user_id", request.user_id)
+      .in("course_id", validCourseIds);
   }
 
   // Mark request approved
@@ -151,6 +207,48 @@ export async function approveEnrollment(requestId: string) {
     .eq("id", requestId);
 
   if (updateError) return { error: updateError.message };
+
+  // Also clean up any other duplicate pending requests for this user that cover these same approved courses
+  try {
+    const { data: otherPending } = await admin
+      .from("lms_enrollment_requests")
+      .select("id, course_ids, course_title, selected_all")
+      .eq("user_id", request.user_id)
+      .eq("status", "pending")
+      .neq("id", requestId);
+
+    if (otherPending && otherPending.length > 0) {
+      const validSet = new Set(validCourseIds);
+      const otherIdsToApprove: string[] = [];
+      otherPending.forEach((op: any) => {
+        if (op.selected_all && request.selected_all) {
+          otherIdsToApprove.push(op.id);
+        } else if (Array.isArray(op.course_ids) && op.course_ids.length > 0) {
+          const allCovered = op.course_ids.every((cid: string) => validSet.has(cid));
+          if (allCovered) otherIdsToApprove.push(op.id);
+        } else if (
+          op.course_title &&
+          request.course_title &&
+          op.course_title.toLowerCase().trim() === request.course_title.toLowerCase().trim()
+        ) {
+          otherIdsToApprove.push(op.id);
+        }
+      });
+
+      if (otherIdsToApprove.length > 0) {
+        await admin
+          .from("lms_enrollment_requests")
+          .update({
+            status: "approved",
+            admin_note: "Auto-approved with primary request " + requestId,
+            reviewed_at: new Date().toISOString(),
+          })
+          .in("id", otherIdsToApprove);
+      }
+    }
+  } catch (cleanErr) {
+    console.warn("[approveEnrollment] Auto-resolving duplicate requests warning:", cleanErr);
+  }
 
   // Fetch student profile for email
   const { data: profile } = await admin
@@ -202,9 +300,24 @@ export async function approveEnrollment(requestId: string) {
   revalidatePath("/admin/enrollments");
   revalidatePath("/admin/payments");
   revalidatePath("/admin/students");
+  if (request.user_id) {
+    revalidatePath(`/admin/students/${request.user_id}`);
+  }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/courses");
   revalidatePath("/dashboard/certificates");
+  revalidatePath("/courses");
+  revalidatePath("/courses/[slug]", "page");
+  revalidatePath("/");
+  revalidatePath("/enroll");
+
+  fetchedCourses.forEach((c: any) => {
+    if (c.slug) {
+      revalidatePath(`/courses/${c.slug}`);
+      revalidatePath(`/learn/${c.slug}/main-video`);
+    }
+  });
+
   return { success: true };
 }
 
@@ -248,6 +361,10 @@ export async function rejectEnrollment(requestId: string, note?: string) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/courses");
   revalidatePath("/dashboard/certificates");
+  revalidatePath("/courses");
+  revalidatePath("/courses/[slug]", "page");
+  revalidatePath("/");
+  revalidatePath("/enroll");
   return { success: true };
 }
 
@@ -281,5 +398,81 @@ export async function deEnrollStudent(userId: string, courseIds: string[]) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/courses");
   revalidatePath("/dashboard/certificates");
+  revalidatePath("/courses");
+  revalidatePath("/courses/[slug]", "page");
+  revalidatePath("/");
+  revalidatePath("/enroll");
   return { success: true };
 }
+
+export async function checkCoursePendingStatus(courseSlugOrId: string) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { isPending: false };
+
+    const admin = createAdminClient();
+    let courseId = courseSlugOrId;
+    let courseTitle = "";
+    const { data: courseRow } = await admin
+      .from("lms_courses")
+      .select("id, title")
+      .or(`slug.eq.${courseSlugOrId},id.eq.${courseSlugOrId}`)
+      .maybeSingle();
+
+    if (courseRow) {
+      courseId = courseRow.id;
+      courseTitle = courseRow.title;
+    }
+
+    // 1. If user is ALREADY ENROLLED and active, return isEnrolled: true immediately
+    const { data: activeEnrollment } = await admin
+      .from("lms_enrollments")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("course_id", courseId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (activeEnrollment) {
+      return { isPending: false, isEnrolled: true };
+    }
+
+    const { data: reqs } = await admin
+      .from("lms_enrollment_requests")
+      .select("id, course_ids, course_title, selected_all, utr_number, amount_inr, requested_at")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .order("requested_at", { ascending: false });
+
+    if (!reqs || reqs.length === 0) return { isPending: false, isEnrolled: false };
+
+    const matched = reqs.find(
+      (r: any) =>
+        r.selected_all ||
+        (Array.isArray(r.course_ids) && r.course_ids.includes(courseId)) ||
+        (courseTitle &&
+          typeof r.course_title === "string" &&
+          r.course_title.toLowerCase().includes(courseTitle.toLowerCase()))
+    );
+
+    if (matched) {
+      return {
+        isPending: true,
+        isEnrolled: false,
+        utrNumber: matched.utr_number || "Payment proof submitted",
+        amount: matched.amount_inr,
+        courseTitle: matched.course_title,
+        requestedAt: matched.requested_at,
+      };
+    }
+
+    return { isPending: false, isEnrolled: false };
+  } catch (err) {
+    console.warn("[checkCoursePendingStatus] Error:", err);
+    return { isPending: false, isEnrolled: false };
+  }
+}
+

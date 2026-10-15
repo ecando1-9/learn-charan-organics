@@ -29,6 +29,7 @@ import {
   Eye,
   EyeOff,
   User as UserIcon,
+  Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
@@ -65,6 +66,7 @@ interface Props {
   initialPlanId?: string;
   userEmail?: string | null;
   isAuthenticated?: boolean;
+  pendingRequests?: any[];
 }
 
 async function compressImageIfNeeded(file: File): Promise<File> {
@@ -147,6 +149,7 @@ export function CourseCheckout({
   initialPlanId,
   userEmail,
   isAuthenticated = false,
+  pendingRequests = [],
 }: Props) {
   const router = useRouter();
 
@@ -320,6 +323,34 @@ export function CourseCheckout({
     ? courses.filter((c) => c.id !== primaryCourse.id)
     : [];
 
+  // Pending access request helpers
+  const pendingCourseIds = new Set<string>();
+  let isSelectedAllPending = false;
+
+  (pendingRequests || []).forEach((req: any) => {
+    if (req.selected_all) {
+      isSelectedAllPending = true;
+    }
+    if (Array.isArray(req.course_ids)) {
+      req.course_ids.forEach((id: string) => pendingCourseIds.add(id));
+    }
+  });
+
+  const isCoursePending = (courseId: string) => {
+    return isSelectedAllPending || pendingCourseIds.has(courseId);
+  };
+
+  const getPendingRequestForCourse = (courseId: string) => {
+    return (pendingRequests || []).find(
+      (req: any) => req.selected_all || (Array.isArray(req.course_ids) && req.course_ids.includes(courseId))
+    );
+  };
+
+  const allSelectedArePending =
+    selected.size > 0 && Array.from(selected).every((id) => isCoursePending(id));
+  const anySelectedIsPending =
+    Array.from(selected).some((id) => isCoursePending(id));
+
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
 
   useEffect(() => {
@@ -450,6 +481,12 @@ export function CourseCheckout({
     }
     if (!utr.trim() && !proofFile) {
       setError("Please enter your 12-digit UPI / UTR transaction number or attach a screenshot.");
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (allSelectedArePending) {
+      setError("You have already submitted an access request for this course. Please contact WhatsApp for immediate unlock.");
       errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
@@ -782,6 +819,35 @@ export function CourseCheckout({
           {/* Primary Selected Masterclass Card */}
           {primaryCourse && (
             <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-4">
+              {isCoursePending(primaryCourse.id) && (
+                <div className="rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="size-9 rounded-xl bg-amber-500 text-white grid place-items-center shrink-0 shadow-sm">
+                      <Clock size={18} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full">
+                        Course Access Request Pending
+                      </span>
+                      <p className="text-xs font-bold text-forest dark:text-cream mt-0.5">
+                        You already submitted payment verification for this masterclass!
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={`https://wa.me/${PAYMENT_CONFIG.supportWhatsapp}?text=${encodeURIComponent(
+                      `Hello Charan Organics Academy, I have already submitted payment for "${primaryCourse.title}". Please unlock immediate access for me.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#25D366] hover:bg-[#20ba59] text-white px-4 py-2 text-xs font-black shadow-md transition active:scale-95 shrink-0"
+                  >
+                    <MessageCircle size={15} />
+                    <span>Unlock on WhatsApp</span>
+                  </a>
+                </div>
+              )}
+
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-black px-3 py-0.5">
                   <CheckCircle2 size={13} /> Selected Masterclass
@@ -973,6 +1039,11 @@ export function CourseCheckout({
                                   IN YOUR ORDER ✓
                                 </span>
                               )}
+                              {isCoursePending(c.id) && (
+                                <span className="rounded-full bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 shrink-0 flex items-center gap-1 shadow-xs">
+                                  <Clock size={10} /> REQUEST PENDING
+                                </span>
+                              )}
                             </div>
                             <p className="text-[11px] text-ink/65 dark:text-cream/65 line-clamp-2 leading-relaxed">
                               {c.description ||
@@ -1012,26 +1083,40 @@ export function CourseCheckout({
                               ₹{currentPrice.toLocaleString("en-IN")}
                             </span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => toggleCourse(c.id)}
-                            className={`w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                              isAdded
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                : "bg-forest text-white hover:bg-leaf dark:bg-emerald-600"
-                            }`}
-                            title={isAdded ? "Click to remove from order" : "Click to add to order"}
-                          >
-                            {isAdded ? (
-                              <>
-                                <Check size={14} /> Added to Order ✓
-                              </>
-                            ) : (
-                              <>
-                                <Plus size={14} /> Add to Order (+₹{currentPrice.toLocaleString("en-IN")})
-                              </>
-                            )}
-                          </button>
+                          {isCoursePending(c.id) ? (
+                            <a
+                              href={`https://wa.me/${PAYMENT_CONFIG.supportWhatsapp}?text=${encodeURIComponent(
+                                `Hello Charan Organics Academy, I have already submitted payment for "${c.title}". Please unlock immediate access.`
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full sm:w-auto px-4 py-2.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 active:scale-95"
+                            >
+                              <Clock size={13} />
+                              <span>Pending &bull; WhatsApp</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleCourse(c.id)}
+                              className={`w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                                isAdded
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  : "bg-forest text-white hover:bg-leaf dark:bg-emerald-600"
+                              }`}
+                              title={isAdded ? "Click to remove from order" : "Click to add to order"}
+                            >
+                              {isAdded ? (
+                                <>
+                                  <Check size={14} /> Added to Order ✓
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={14} /> Add to Order (+₹{currentPrice.toLocaleString("en-IN")})
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -1154,29 +1239,66 @@ export function CourseCheckout({
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => {
-                if (selected.size === 0) {
-                  setError("Please select at least one course to enroll.");
-                  return;
-                }
-                if (!authenticated) {
-                  setShowAuthModal(true);
-                  return;
-                }
-                setError("");
-                setCheckoutStep("payment");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 py-3.5 sm:py-4 text-sm sm:text-base font-black text-white shadow-lg transition active:scale-98 cursor-pointer"
-            >
-              <span>Proceed to Payment ({formatCurrency(totalAmount)})</span>
-              <ArrowRight size={18} />
-            </button>
-            <p className="text-center text-[11px] text-ink/50 dark:text-cream/50">
-              Next Step: Scan Official UPI QR Code &bull; GPay, PhonePe, Paytm &bull; Instant 24hr Verification
-            </p>
+            {allSelectedArePending ? (
+              <div className="space-y-3 pt-1">
+                <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-3.5 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                  <p className="font-black text-sm flex items-center gap-1.5">
+                    <Clock size={15} className="text-amber-600" />
+                    Course Access Request Already Submitted!
+                  </p>
+                  <p className="text-[11px] leading-relaxed opacity-90">
+                    You have already submitted a payment verification request for this course. You do not need to make another payment!
+                  </p>
+                </div>
+
+                <a
+                  href={`https://wa.me/${PAYMENT_CONFIG.supportWhatsapp}?text=${encodeURIComponent(
+                    `Hello Charan Organics Academy, I have already submitted payment for "${selectedCourses.map((c) => c.title).join(", ")}". Please unlock immediate access for me.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] hover:bg-[#20ba59] py-3.5 sm:py-4 text-sm sm:text-base font-black text-white shadow-lg transition active:scale-98"
+                >
+                  <MessageCircle size={18} />
+                  <span>Want Immediate Access? Unlock on WhatsApp</span>
+                </a>
+
+                <div className="text-center pt-0.5">
+                  <Link
+                    href="/dashboard#access-requests"
+                    className="text-xs font-bold text-forest dark:text-cream hover:underline inline-flex items-center gap-1"
+                  >
+                    <Clock size={13} /> View Your Request Status in Dashboard →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selected.size === 0) {
+                      setError("Please select at least one course to enroll.");
+                      return;
+                    }
+                    if (!authenticated) {
+                      setShowAuthModal(true);
+                      return;
+                    }
+                    setError("");
+                    setCheckoutStep("payment");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 py-3.5 sm:py-4 text-sm sm:text-base font-black text-white shadow-lg transition active:scale-98 cursor-pointer"
+                >
+                  <span>Proceed to Payment ({formatCurrency(totalAmount)})</span>
+                  <ArrowRight size={18} />
+                </button>
+                <p className="text-center text-[11px] text-ink/50 dark:text-cream/50">
+                  Next Step: Scan Official UPI QR Code &bull; GPay, PhonePe, Paytm &bull; Instant 24hr Verification
+                </p>
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -1443,7 +1565,119 @@ export function CourseCheckout({
 
           {/* ══════════ RIGHT COLUMN: Payment & Proof Submission ══════════ */}
           <div className="space-y-4 lg:sticky lg:top-20">
-            <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-5">
+            {allSelectedArePending ? (
+              <div className="rounded-3xl bg-white p-6 sm:p-7 shadow-soft dark:bg-white/5 border-2 border-amber-400/50 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shrink-0">
+                    <Clock size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-3 py-1 rounded-full">
+                      Verification in Progress
+                    </span>
+                    <h3 className="text-lg sm:text-xl font-black text-forest dark:text-cream mt-1">
+                      Access Request Already Submitted
+                    </h3>
+                  </div>
+                </div>
+
+                {/* Pending Request Details */}
+                {(() => {
+                  const pendingReq = (pendingRequests || []).find(
+                    (r: any) =>
+                      r.selected_all ||
+                      (Array.isArray(r.course_ids) && selectedCourses.some((sc) => r.course_ids.includes(sc.id)))
+                  );
+                  return pendingReq ? (
+                    <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 space-y-2 text-xs text-amber-900 dark:text-amber-200">
+                      <p className="font-bold text-sm text-forest dark:text-cream">
+                        {pendingReq.course_title}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-500/20 text-[11px]">
+                        <div>
+                          <span className="opacity-70">Amount Paid:</span>{" "}
+                          <strong>₹{pendingReq.amount_inr}</strong>
+                        </div>
+                        <div>
+                          <span className="opacity-70">Reference / UTR:</span>{" "}
+                          <strong className="truncate block font-mono font-bold">
+                            {pendingReq.utr_number || "Payment Proof Attached"}
+                          </strong>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="opacity-70">Submitted On:</span>{" "}
+                          <span>
+                            {new Date(pendingReq.requested_at).toLocaleString("en-IN", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] pt-1 text-ink/70 dark:text-cream/70 leading-relaxed">
+                        Your payment was received and is being verified by our admissions desk. You do not need to pay or submit proof again!
+                      </p>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Instant WhatsApp Unlock Banner */}
+                <div className="rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/40 p-4 sm:p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-forest dark:text-cream font-black text-sm sm:text-base">
+                    <Zap size={18} className="text-leaf" />
+                    <span>Want Immediate Access?</span>
+                  </div>
+                  <p className="text-xs text-ink/75 dark:text-cream/75 leading-relaxed">
+                    Need to start studying right away? Chat directly with our admissions desk on WhatsApp. Share your payment screenshot to unlock this course in <strong>under 5 minutes</strong>!
+                  </p>
+                  <a
+                    href={`https://wa.me/${PAYMENT_CONFIG.supportWhatsapp}?text=${encodeURIComponent(
+                      `Hello Charan Organics Academy, I have already submitted payment for "${selectedCourses.map((c) => c.title).join(", ")}". Please unlock immediate access for me.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] hover:bg-[#20ba59] text-white py-3.5 px-6 font-black text-xs sm:text-sm shadow-lg transition active:scale-95"
+                  >
+                    <MessageCircle size={18} />
+                    <span>Unlock Immediate Access on WhatsApp</span>
+                  </a>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Link href="/dashboard#access-requests" className="flex-1">
+                    <button
+                      type="button"
+                      className="w-full py-2.5 px-4 rounded-full bg-forest/5 hover:bg-forest/10 dark:bg-white/10 dark:hover:bg-white/15 text-xs font-bold text-forest dark:text-cream border border-forest/10 dark:border-white/10 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Clock size={14} /> Check Request Status
+                    </button>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCheckoutStep("bundle");
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-full border border-forest/20 hover:border-forest/40 text-xs font-bold text-forest dark:text-cream transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ArrowLeft size={14} /> Modify Selection
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-soft dark:bg-white/5 border border-forest/10 dark:border-white/10 space-y-5">
+                {/* Notice if any course is already pending */}
+                {anySelectedIsPending && (
+                  <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-3.5 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <Clock size={14} className="text-amber-600" />
+                      Notice: Pending Course in Order
+                    </p>
+                    <p className="text-[11px] leading-relaxed">
+                      You already have a pending verification for one of your selected courses. Your payment below is only needed for any newly selected masterclasses.
+                    </p>
+                  </div>
+                )}
 
               {/* Account Status */}
               {authenticated ? (
@@ -1721,6 +1955,7 @@ export function CourseCheckout({
                 </p>
               </div>
             </div>
+            )}
           </div>
 
         </div>

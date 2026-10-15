@@ -7,22 +7,54 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
 import { JoinAcademyCta } from "@/components/home/join-academy-cta";
 import { FreeClassesStrip } from "@/components/home/free-classes-strip";
-import { getPublishedCourses, getUserEnrolledCourseIds } from "@/lib/course-data";
+import { getPublishedCourses, getUserEnrolledCourseIds, getUserPendingCourseData } from "@/lib/course-data";
 import { HeroCarousel } from "@/components/home/hero-carousel";
 import { HomeCourseTabs } from "@/components/home/home-course-tabs";
 import { TestimonialsSection } from "@/components/home/testimonials-section";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
-  const [courses, enrolledIds] = await Promise.all([
+  const [courses, enrolledIds, pendingData] = await Promise.all([
     getPublishedCourses(),
     getUserEnrolledCourseIds(),
+    getUserPendingCourseData(),
   ]);
 
   const enrolledIdSet = new Set(enrolledIds);
-  const coursesWithStatus = courses.map((c) => ({
-    ...c,
-    isEnrolled: Boolean(c.id && enrolledIdSet.has(c.id)),
-  }));
+  const pendingIdSet = new Set(pendingData.pendingCourseIds);
+
+  const coursesWithStatus = courses.map((c) => {
+    const isEnrolled = Boolean(c.id && enrolledIdSet.has(c.id));
+    const isPending =
+      !isEnrolled &&
+      Boolean(
+        pendingData.allCoursesPending ||
+          (c.id && pendingIdSet.has(c.id)) ||
+          pendingData.pendingRequests.some(
+            (r) =>
+              typeof r.course_title === "string" &&
+              r.course_title.toLowerCase().includes(c.title.toLowerCase())
+          )
+      );
+
+    const matchingPending = isPending
+      ? pendingData.pendingRequests.find(
+          (r) =>
+            r.selected_all ||
+            (c.id && Array.isArray(r.course_ids) && r.course_ids.includes(c.id)) ||
+            (typeof r.course_title === "string" &&
+              r.course_title.toLowerCase().includes(c.title.toLowerCase()))
+        )
+      : null;
+
+    return {
+      ...c,
+      isEnrolled,
+      isPending,
+      pendingUtr: matchingPending?.utr_number || null,
+    };
+  });
   const myCourses = coursesWithStatus.filter((c) => c.id && enrolledIdSet.has(c.id));
 
   return (

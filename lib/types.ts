@@ -64,6 +64,8 @@ export type Course = {
   isEnrolled?: boolean;
   isFree?: boolean;
   isPremium?: boolean;
+  isPending?: boolean;
+  pendingUtr?: string | null;
   createdAt?: string;
 };
 

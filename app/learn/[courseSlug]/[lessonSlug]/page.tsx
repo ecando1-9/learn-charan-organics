@@ -30,7 +30,8 @@ export default async function LearnPage({ params }: { params: Promise<{ courseSl
     }
 
     if (course.id) {
-      const { data: enrollment } = await supabase
+      const admin = createAdminClient();
+      const { data: enrollment } = await admin
         .from("lms_enrollments")
         .select("id")
         .eq("user_id", user.id)
@@ -40,7 +41,6 @@ export default async function LearnPage({ params }: { params: Promise<{ courseSl
 
       if (!enrollment) {
         // Check if admin (admins can always view any lesson)
-        const admin = createAdminClient();
         const { data: profile } = await admin
           .from("lms_profiles")
           .select("role")

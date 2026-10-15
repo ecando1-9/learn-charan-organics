@@ -1,9 +1,12 @@
 import { unstable_cache } from "next/cache";
 import type { Course, CourseLevel, Lesson, Module } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { parsePdfResources } from "@/lib/course-pdfs";
+import { getBunnyThumbnailUrl } from "@/lib/bunny";
+import { parseDurationVariants } from "@/lib/course-variants";
 
 type DbCourse = {
   id: string;
@@ -64,8 +67,6 @@ function youtubeIdFromUrl(url: string | null | undefined): string {
   );
 }
 
-import { getBunnyThumbnailUrl } from "@/lib/bunny";
-
 function defaultThumbnail(course: DbCourse & { bunny_video_id?: string | null }) {
   if (course.bunny_video_id) {
     const bunnyThumb = getBunnyThumbnailUrl(course.bunny_video_id);
@@ -75,9 +76,6 @@ function defaultThumbnail(course: DbCourse & { bunny_video_id?: string | null })
   if (videoId) return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
   return "/globe.svg";
 }
-
-import { parseDurationVariants } from "@/lib/course-variants";
-
 
 function buildCourse(course: DbCourse, categoryName: string, modules: Module[] = []): Course {
   const isFree = course.is_free === true || Number(course.price_inr ?? 0) === 0;
@@ -128,15 +126,77 @@ export async function getUserEnrolledCourseIds(): Promise<string[]> {
 
     if (!user) return [];
 
-    const { data } = await supabase
+    const admin = createAdminClient();
+    const { data } = await admin
       .from("lms_enrollments")
       .select("course_id")
       .eq("user_id", user.id)
       .eq("status", "active");
 
-    return (data ?? []).map((e) => e.course_id);
+    return (data ?? []).map((e: any) => e.course_id);
   } catch {
     return [];
+  }
+}
+
+export async function getUserPendingCourseData(): Promise<{
+  pendingCourseIds: string[];
+  pendingRequests: any[];
+  allCoursesPending: boolean;
+}> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { pendingCourseIds: [], pendingRequests: [], allCoursesPending: false };
+    }
+
+    const admin = createAdminClient();
+    const [{ data: reqs }, { data: activeEnrollments }] = await Promise.all([
+      admin
+        .from("lms_enrollment_requests")
+        .select("id, course_ids, course_title, selected_all, utr_number, amount_inr, requested_at, status")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .order("requested_at", { ascending: false }),
+      admin
+        .from("lms_enrollments")
+        .select("course_id")
+        .eq("user_id", user.id)
+        .eq("status", "active"),
+    ]);
+
+    const activeSet = new Set((activeEnrollments ?? []).map((e: any) => e.course_id));
+
+    if (!reqs || reqs.length === 0) {
+      return { pendingCourseIds: [], pendingRequests: [], allCoursesPending: false };
+    }
+
+    const pendingIds = new Set<string>();
+    let allPending = false;
+
+    reqs.forEach((r: any) => {
+      if (r.selected_all) allPending = true;
+      if (Array.isArray(r.course_ids)) {
+        r.course_ids.forEach((id: string) => {
+          if (!activeSet.has(id)) {
+            pendingIds.add(id);
+          }
+        });
+      }
+    });
+
+    return {
+      pendingCourseIds: Array.from(pendingIds),
+      pendingRequests: reqs,
+      allCoursesPending: allPending && activeSet.size === 0,
+    };
+  } catch (err) {
+    console.warn("[getUserPendingCourseData] Error:", err);
+    return { pendingCourseIds: [], pendingRequests: [], allCoursesPending: false };
   }
 }
 

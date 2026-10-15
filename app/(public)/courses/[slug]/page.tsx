@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  CheckCircle2, Clock, Globe2, Lock, PlayCircle, Sparkles, FileText, Award, Download,
+  CheckCircle2, Clock, Globe2, Lock, PlayCircle, Sparkles, FileText, Award, Download, MessageCircle, Zap,
 } from "lucide-react";
 import { getCourseBySlug } from "@/lib/course-data";
 import { formatCurrency } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CourseReviews } from "@/components/course/course-reviews";
 import { CourseEnrollWidget } from "@/components/course/course-enroll-widget";
+import { PAYMENT_CONFIG } from "@/lib/payment-config";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
 
   let isEnrolled = false;
   let hasPendingRequest = false;
+  let matchingRequest: any = null;
   let isAdmin = false;
 
   if (user && dbCourse) {
@@ -50,7 +52,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
       .maybeSingle();
     isAdmin = profile?.role === "admin";
 
-    const { data: enroll } = await supabase
+    const { data: enroll } = await admin
       .from("lms_enrollments")
       .select("id")
       .eq("user_id", user.id)
@@ -61,17 +63,22 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
     if (enroll) {
       isEnrolled = true;
     } else if (!isFree) {
-      // Only check pending requests for paid courses
-      const { data: reqs } = await supabase
+      // Use admin client to reliably check pending requests without RLS restrictions
+      const { data: reqs } = await admin
         .from("lms_enrollment_requests")
-        .select("course_ids, selected_all")
+        .select("id, course_ids, course_title, selected_all, utr_number, amount_inr, requested_at")
         .eq("user_id", user.id)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .order("requested_at", { ascending: false });
 
       if (reqs && reqs.length > 0) {
-        hasPendingRequest = reqs.some(
-          (r) => r.selected_all || (r.course_ids && r.course_ids.includes(dbCourse.id))
+        matchingRequest = reqs.find(
+          (r: any) =>
+            r.selected_all ||
+            (Array.isArray(r.course_ids) && (r.course_ids.includes(dbCourse.id) || (course.id && r.course_ids.includes(course.id)))) ||
+            (typeof r.course_title === "string" && r.course_title.toLowerCase().includes(course.title.toLowerCase()))
         );
+        hasPendingRequest = Boolean(matchingRequest);
       }
     }
   }
@@ -169,17 +176,43 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
               {/* ── PAID COURSE: pending approval ── */}
               {!isFree && hasPendingRequest && (
                 <div className="space-y-3">
-                  <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-600 dark:text-amber-400">
-                    <div className="flex items-center gap-2 font-black mb-1">
-                      <Clock size={16} /> Payment Verification Pending
+                  <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-4 text-xs sm:text-sm text-amber-900 dark:text-amber-200 space-y-1.5">
+                    <div className="flex items-center gap-2 font-black text-amber-600 dark:text-amber-400">
+                      <Clock size={16} /> Course Access Request Pending
                     </div>
-                    <p className="text-xs leading-5">
-                      Your payment has been submitted. Admin will verify and unlock access within 48 hours.
+                    <p className="text-xs leading-relaxed opacity-90">
+                      You have already requested access for this course. Your payment proof is under verification.
                     </p>
+                    {matchingRequest?.utr_number && (
+                      <p className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300">
+                        Ref / UTR: {matchingRequest.utr_number}
+                      </p>
+                    )}
                   </div>
+
+                  {/* Immediate Access WhatsApp Box */}
+                  <div className="rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/30 p-3.5 space-y-2">
+                    <p className="text-xs font-black text-forest dark:text-cream flex items-center gap-1.5">
+                      <Zap size={14} className="text-leaf" /> Want Immediate Access?
+                    </p>
+                    <p className="text-[11px] text-ink/75 dark:text-cream/75 leading-relaxed">
+                      Connect with admissions on WhatsApp to get this course unlocked right away!
+                    </p>
+                    <a
+                      href={`https://wa.me/${PAYMENT_CONFIG.supportWhatsapp}?text=${encodeURIComponent(
+                        `Hello Charan Organics Academy, I have already submitted payment for "${course.title}" (UTR: ${matchingRequest?.utr_number || "Payment Proof"}). Please unlock immediate access for me.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20ba59] py-2.5 px-3 text-xs font-black text-white shadow-md transition active:scale-95"
+                    >
+                      <MessageCircle size={15} /> Unlock Immediate Access on WhatsApp
+                    </a>
+                  </div>
+
                   <Link href="/dashboard#access-requests" className="block">
                     <Button variant="secondary" className="w-full text-xs min-h-9 py-1 font-bold">
-                      View Request Status
+                      View Request in Dashboard
                     </Button>
                   </Link>
                 </div>

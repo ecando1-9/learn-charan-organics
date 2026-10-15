@@ -34,6 +34,8 @@ export function CourseCard({ course }: { course: Course }) {
       className={`group relative flex flex-col overflow-hidden rounded-2xl sm:rounded-[2rem] border transition-all duration-300 hover:-translate-y-1 hover:shadow-glass ${
         course.isEnrolled
           ? "border-emerald-500/40 bg-emerald-500/5 shadow-soft dark:border-emerald-500/30 dark:bg-emerald-950/20"
+          : course.isPending
+          ? "border-amber-500/50 bg-amber-500/5 shadow-soft dark:border-amber-500/40 dark:bg-amber-950/20"
           : "border-forest/10 bg-white shadow-soft dark:border-white/10 dark:bg-white/5"
       }`}
     >
@@ -59,17 +61,29 @@ export function CourseCard({ course }: { course: Course }) {
           {course.category}
         </span>
 
-        {/* Enrolled vs Premium vs Free Badge */}
+        {/* Enrolled vs Pending vs Premium vs Free Badge */}
         <span
-          className={`absolute right-2 top-2 sm:right-3 sm:top-3 rounded-full px-2 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-black backdrop-blur-md shadow-sm ${
+          className={`absolute right-2 top-2 sm:right-3 sm:top-3 rounded-full px-2 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-black backdrop-blur-md shadow-sm flex items-center gap-1 ${
             course.isEnrolled
               ? "bg-emerald-700 text-white border border-emerald-400/40"
+              : course.isPending
+              ? "bg-amber-500 text-white border border-amber-400/50"
               : isFree
               ? "bg-emerald-600 text-white"
               : "bg-amber-500 text-white"
           }`}
         >
-          {course.isEnrolled ? "Enrolled ✅" : isFree ? "Free Class" : "Premium"}
+          {course.isEnrolled ? (
+            "Enrolled ✅"
+          ) : course.isPending ? (
+            <>
+              <Clock size={11} /> Request Pending
+            </>
+          ) : isFree ? (
+            "Free Class"
+          ) : (
+            "Premium"
+          )}
         </span>
       </div>
 
@@ -104,6 +118,10 @@ export function CourseCard({ course }: { course: Course }) {
               <span className="text-emerald-700 dark:text-emerald-400 text-xs font-black flex items-center gap-1">
                 <CheckCircle2 size={13} /> Purchased
               </span>
+            ) : course.isPending ? (
+              <span className="text-amber-600 dark:text-amber-400 text-xs font-black flex items-center gap-1">
+                <Clock size={13} /> Access Pending
+              </span>
             ) : isFree ? (
               <span className="text-leaf">FREE</span>
             ) : (
@@ -121,12 +139,14 @@ export function CourseCard({ course }: { course: Course }) {
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-bold transition-colors ${
               course.isEnrolled
                 ? "bg-emerald-600 text-white group-hover:bg-emerald-700 shadow-sm"
+                : course.isPending
+                ? "bg-[#25D366] text-white hover:bg-[#20ba59] shadow-sm font-black"
                 : isFree
                 ? "bg-leaf/10 text-leaf group-hover:bg-leaf group-hover:text-white"
                 : "bg-emerald-600 text-white group-hover:bg-emerald-700 shadow-sm"
             }`}
           >
-            {course.isEnrolled ? "Start Learning →" : isFree ? "Start Free →" : "Enroll →"}
+            {course.isEnrolled ? "Start Learning →" : course.isPending ? "Pending • WhatsApp →" : isFree ? "Start Free →" : "Enroll →"}
           </span>
         </div>
       </div>

@@ -552,9 +552,12 @@ export function AdminEnrollmentsClient({
                       </div>
 
                       {/* Final Action Buttons based on verification state */}
-                      {verifyState === "verified" && (
+                      {verifyState !== "not_verified" && (
                         <button
-                          onClick={() => handleApprove(req.id)}
+                          onClick={() => {
+                            setVerifyStatusMap((prev) => ({ ...prev, [req.id]: "verified" }));
+                            handleApprove(req.id);
+                          }}
                           disabled={isActionLoading === "approve"}
                           className="w-full flex items-center justify-center gap-2 rounded-xl bg-forest py-2.5 text-xs font-bold text-white hover:bg-leaf transition shadow-sm active:scale-98 disabled:opacity-50 cursor-pointer"
                         >
@@ -810,9 +813,27 @@ export function AdminEnrollmentsClient({
                     </p>
                   )}
 
-                  <div className="flex items-center justify-between pt-1 text-[10px] text-ink/40 dark:text-cream/40">
+                  <div className="flex items-center justify-between pt-1 text-[10px] text-ink/40 dark:text-cream/40 border-t border-red-200/60 dark:border-red-950/40">
                     <span>Submitted: {new Date(req.requested_at).toLocaleDateString("en-IN")}</span>
                     {req.utr_number && <span>UTR: {req.utr_number}</span>}
+                  </div>
+
+                  <div className="pt-1">
+                    <button
+                      onClick={() => handleApprove(req.id)}
+                      disabled={actionLoading[req.id] === "approve"}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-forest py-2 text-xs font-bold text-white hover:bg-leaf transition shadow-xs active:scale-98 disabled:opacity-50 cursor-pointer"
+                    >
+                      {actionLoading[req.id] === "approve" ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" /> Approving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={12} /> Approve & Grant Access
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ))}

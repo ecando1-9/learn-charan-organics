@@ -15,11 +15,15 @@ import {
   AlertCircle,
   Loader2,
   User as UserIcon,
+  MessageCircle,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { syncUserProfile } from "@/app/actions/sync-profile";
+import { checkCoursePendingStatus } from "@/app/actions/enrollment";
+import { PAYMENT_CONFIG } from "@/lib/payment-config";
 import type { CourseDurationVariant } from "@/lib/types";
 
 interface Props {
@@ -53,6 +57,25 @@ export function CourseEnrollWidget({
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+
+  const [pendingInfo, setPendingInfo] = useState<{
+    isPending: boolean;
+    utrNumber?: string;
+    amount?: number;
+    courseTitle?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    checkCoursePendingStatus(slug).then((res) => {
+      if (res) {
+        if (res.isEnrolled) {
+          router.refresh();
+        } else if (res.isPending) {
+          setPendingInfo(res);
+        }
+      }
+    });
+  }, [slug, router]);
 
   useEffect(() => {
     if (showAuthModal) {
@@ -165,6 +188,52 @@ export function CourseEnrollWidget({
       setAuthError(oAuthErr.message);
       setAuthLoading(false);
     }
+  }
+
+  if (pendingInfo?.isPending) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-4 text-xs sm:text-sm text-amber-900 dark:text-amber-200 space-y-1.5">
+          <div className="flex items-center gap-2 font-black text-amber-600 dark:text-amber-400">
+            <Clock size={16} /> Course Access Request Pending
+          </div>
+          <p className="text-xs leading-relaxed opacity-90">
+            You have already requested access for this course. Your payment proof is under verification.
+          </p>
+          {pendingInfo.utrNumber && (
+            <p className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300">
+              Ref / UTR: {pendingInfo.utrNumber}
+            </p>
+          )}
+        </div>
+
+        {/* Immediate Access WhatsApp Box */}
+        <div className="rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/30 p-3.5 space-y-2">
+          <p className="text-xs font-black text-forest dark:text-cream flex items-center gap-1.5">
+            <Zap size={14} className="text-leaf" /> Want Immediate Access?
+          </p>
+          <p className="text-[11px] text-ink/75 dark:text-cream/75 leading-relaxed">
+            Connect with admissions on WhatsApp to get this course unlocked in <strong>under 5 minutes</strong>!
+          </p>
+          <a
+            href={`https://wa.me/${PAYMENT_CONFIG.supportWhatsapp}?text=${encodeURIComponent(
+              `Hello Charan Organics Academy, I have already submitted payment for "${pendingInfo.courseTitle || slug}" (UTR: ${pendingInfo.utrNumber || "Payment Proof"}). Please unlock immediate access for me.`
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20ba59] py-2.5 px-3 text-xs font-black text-white shadow-md transition active:scale-95"
+          >
+            <MessageCircle size={15} /> Unlock Immediate Access on WhatsApp
+          </a>
+        </div>
+
+        <Link href="/dashboard#access-requests" className="block">
+          <Button variant="secondary" className="w-full text-xs min-h-9 py-1 font-bold">
+            View Request in Dashboard
+          </Button>
+        </Link>
+      </div>
+    );
   }
 
   return (
